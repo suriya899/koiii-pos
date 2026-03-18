@@ -6,6 +6,10 @@
 <title>POS ร้านชาบู</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Prompt:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+
+<!-- QR Code library — ใช้สร้าง QR PromptPay อัตโนมัติ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 </head>
 <body>
 
@@ -168,7 +172,7 @@
   <div class="modal">
     <h3>📱 โอนเงิน / QR</h3>
     <div class="modal-orders" id="qrOrderList"></div>
-    <div class="qr-box">🔲</div>
+    <div class="qr-box" id="qrPayBox"></div>
     <div class="qr-amount" id="qrAmt"></div>
     <div class="qr-sub">สแกน PromptPay เพื่อชำระ</div>
     <div class="modal-actions">
@@ -178,7 +182,7 @@
   </div>
 </div>
 
-<!-- SUCCESS MODAL -->
+<!-- SUCCESS MODAL
 <div class="overlay" id="successOverlay">
   <div class="modal">
     <span class="success-icon">✅</span>
@@ -189,7 +193,28 @@
       <button class="btn-confirm" style="width:100%;background:none;border:2px solid var(--accent);color:var(--accent);" onclick="animateBtn(this,function(){resetPOS()})">🏠 จบการใช้งาน / โต๊ะใหม่</button>
     </div>
   </div>
+</div> -->
+
+<!-- SUCCESS MODAL -->
+<div class="overlay" id="successOverlay">
+  <div class="modal">
+    <span class="success-icon">✅</span>
+    <h3 style="text-align:center;color:var(--green);margin-bottom:10px">ชำระเงินสำเร็จ!</h3>
+    <div class="receipt" id="receiptEl"></div>
+ 
+    <!-- กล่อง QR Code PromptPay — สร้างอัตโนมัติตอนชำระเงินสำเร็จ -->
+    <div class="receipt-qr-wrap" id="receiptQRWrap" style="display:none">
+      <div class="receipt-qr-label">📱 สแกน QR ชำระเงิน PromptPay</div>
+      <div id="receiptQR"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <button class="btn-confirm print-btn" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);" onclick="animateBtn(this,function(){window.print()})">🖨️ พิมพ์ใบเสร็จ</button>
+      <button class="btn-confirm" style="width:100%" onclick="animateBtn(this,function(){newOrderSameTable()})">➕ รับออเดอร์โต๊ะต่อไป</button>
+      <button class="btn-confirm" style="width:100%;background:none;border:2px solid var(--accent);color:var(--accent);" onclick="animateBtn(this,function(){resetPOS()})">🏠 จบการใช้งาน / โต๊ะใหม่</button>
+    </div>
+  </div>
 </div>
+
 
 <script>
 // ============================================================
@@ -821,7 +846,16 @@ function openPay(type) {
   } else {
     buildOrderListHtml('qrOrderList');
     document.getElementById('qrAmt').textContent = `฿${total}`;
+
+    document.getElementById('qrPayBox').innerHTML = '';
+    new QRCode(document.getElementById('qrPayBox'), {
+      text: generatePromptPayQR(PROMPTPAY_NUMBER, total),
+      width: 150, height: 150,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
     document.getElementById('qrOverlay').classList.add('show');
+
   }
 }
 
@@ -849,6 +883,85 @@ function calcChange() {
     row.style.display = 'none';
     btn.disabled = true;
   }
+}
+
+// ============================================================
+// PromptPay QR Code Generator
+// ============================================================
+ 
+// เบอร์ PromptPay ของร้าน — เปลี่ยนตรงนี้เป็นเบอร์จริงก่อนใช้งาน
+const PROMPTPAY_NUMBER = '0812345678'; // ← แก้ตรงนี้เป็นเบอร์จริงของร้าน
+ 
+// สร้าง QR Code PromptPay ตามมาตรฐาน EMVCo
+// อ้างอิง: https://promptpay.io
+function generatePromptPayQR(phoneNumber, amount) {
+  // แปลงเบอร์โทร 10 หลัก เป็นรูปแบบ PromptPay (66xxxxxxxxx)
+  // ตัด 0 ด้านหน้าออก แล้วเติม 66 (รหัสประเทศไทย)
+  const phone = '0066' + phoneNumber.replace(/^0/, '');
+ 
+  // ฟังก์ชันช่วยสร้าง TLV (Tag-Length-Value) ตามมาตรฐาน EMVCo
+  // tag = หมายเลขฟิลด์, value = ค่าข้อมูล
+  function tlv(tag, value) {
+    const len = value.length.toString().padStart(2, '0');
+    return tag + len + value;
+  }
+ 
+  // สร้างส่วน merchant account (ข้อมูลบัญชีปลายทาง)
+  const merchantAccount = tlv('00', 'A000000677010111') + tlv('01', phone);
+ 
+  // แปลงยอดเงินให้มีทศนิยม 2 ตำแหน่ง เช่น 150 → "150.00"
+  const amountStr = parseFloat(amount).toFixed(2);
+ 
+  // ประกอบ payload ตามมาตรฐาน PromptPay
+  let payload =
+    '000201'                              + // version
+    '010211'                              + // ห้ามใช้ซ้ำ (one-time QR)
+    tlv('29', merchantAccount)            + // merchant account
+    '5303764'                             + // สกุลเงิน THB (764)
+    tlv('54', amountStr)                  + // จำนวนเงิน
+    '5802TH'                              + // ประเทศไทย
+    '6304';                                 // placeholder สำหรับ checksum
+ 
+  // คำนวณ CRC16 checksum ตามมาตรฐาน EMVCo
+  payload += crc16(payload);
+ 
+  return payload;
+}
+ 
+// คำนวณ CRC16-CCITT checksum
+// ใช้ตรวจสอบความถูกต้องของ QR Code
+function crc16(data) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
+    }
+  }
+  return ((crc & 0xFFFF).toString(16).toUpperCase()).padStart(4, '0');
+}
+ 
+// แสดง QR Code ใต้ใบเสร็จ
+// เรียกใช้ตอนชำระเงินสำเร็จ โดยส่งยอดเงินเข้ามา
+function renderReceiptQR(amount) {
+  const qrData = generatePromptPayQR(PROMPTPAY_NUMBER, amount);
+  const wrap = document.getElementById('receiptQRWrap');
+  const qrEl = document.getElementById('receiptQR');
+ 
+  // ล้าง QR เก่าออกก่อน (กรณีชำระหลายบิล)
+  qrEl.innerHTML = '';
+ 
+  // สร้าง QR Code ใหม่ด้วย QRCode.js library
+  new QRCode(qrEl, {
+    text:         qrData,   // ข้อมูล PromptPay
+    width:        120,      // ขนาด QR (pixel)
+    height:       120,
+    colorDark:    '#000000',
+    colorLight:   '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M // ระดับการแก้ไขข้อผิดพลาด
+  });
+ 
+  wrap.style.display = 'block'; // แสดง wrap
 }
 
 //เพิ่มการบันทึกยอดขาย
@@ -926,6 +1039,7 @@ function showSuccess() {
     <div class="receipt-row receipt-total"><span>รวมทั้งหมด</span><span>฿${p.total}</span></div>
     ${extra}
   `;
+  renderReceiptQR(p.total);
   document.getElementById('successOverlay').classList.add('show');
   completedBowls = [];
   currentBowl = null;

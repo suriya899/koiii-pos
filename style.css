@@ -820,8 +820,8 @@ header {
 
 /* ===== ชำระ QR / โอนเงิน ===== */
 .qr-box {
-  width: 150px;
-  height: 150px;
+  width: 174px;
+  height: 174px;
   background: white;      /* พื้นขาวสำหรับ QR Code */
   border-radius: 8px;
   margin: 0 auto 10px;
@@ -829,6 +829,7 @@ header {
   align-items: center;
   justify-content: center;
   font-size: 3rem;
+  padding: 12px;
 }
 
 .qr-amount { text-align: center; font-family: 'Prompt', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--gold); }
@@ -1335,4 +1336,56 @@ header {
   /* header ของ summary ไม่กดได้บน desktop */
   .summary-header { cursor: default; pointer-events: none; }
   .clear-all-btn  { pointer-events: all; } /* ยกเว้นปุ่มล้างทั้งหมด */
+}
+
+
+/* ===== QR CODE ใบเสร็จ ===== */
+.receipt-qr-wrap {
+  text-align: center;
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.receipt-qr-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+#receiptQR {
+  display: inline-block;
+  background: white;
+  padding: 6px;
+  border-radius: 6px;
+}
+#receiptQR img, #receiptQR canvas { display: block; }
+ 
+/* ===== PRINT STYLES — ใช้ตอน window.print() เท่านั้น ===== */
+@media print {
+  /* ซ่อนทุกอย่างยกเว้นใบเสร็จ */
+  body * { visibility: hidden; }
+ 
+  /* แสดงเฉพาะ modal ใบเสร็จ */
+  #successOverlay,
+  #successOverlay * { visibility: visible; }
+ 
+  /* จัดตำแหน่งให้พิมพ์ได้สวย */
+  #successOverlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: white !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 20px !important;
+  }
+ 
+  /* ซ่อนปุ่มต่างๆ ตอนพิมพ์ */
+  .btn-confirm, .btn-cancel, .print-btn, .success-icon { display: none !important; }
+ 
+  /* ปรับสีให้พิมพ์ออกมาอ่านได้บนกระดาษขาว */
+  .modal { background: white !important; border: none !important; }
+  .receipt { background: white !important; border: 1px dashed #ccc !important; }
+  .receipt-row span { color: #000 !important; }
+  .receipt-total span { color: #e85d30 !important; }
+  .modal h3 { color: #e85d30 !important; }
 }
