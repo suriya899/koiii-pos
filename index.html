@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POS ร้านชาบู</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Prompt:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- WELCOME SCREEN -->
+<div class="welcome-screen show" id="welcomeScreen">
+  <div class="welcome-bg-glow"></div>
+  <span class="welcome-pot">🍲</span>
+  <div class="welcome-brand">KOIII <span>SHABU</span></div>
+  <div class="welcome-sub">Premium Shabu Restaurant</div>
+  <div class="welcome-tagline">
+    ยินดีต้อนรับสู่ Koiii Shabu 🙏<br>กดปุ่มด้านล่างเพื่อสั่งอาหารได้เลยครับ
+  </div>
+  <button class="welcome-btn" onclick="animateBtn(this, showTypeSelect)">🍲 เริ่มสั่งอาหาร</button>
+  <div class="welcome-footer">KOIII SHABU · POS SYSTEM</div>
+</div>
+
+<!-- ORDER TYPE SELECTION -->
+<div class="order-type-screen" id="orderTypeScreen">
+  <div class="ot-title">เลือกประเภทการสั่ง</div>
+  <div class="ot-card" onclick="selectType('dine', this)">
+    <div class="ot-icon">🍽️</div>
+    <div class="ot-label">ทานที่ร้าน</div>
+    <div class="ot-sub">เลือกโต๊ะได้เลย</div>
+  </div>
+  <div class="ot-card" onclick="selectType('takeaway', this)">
+    <div class="ot-icon">🥡</div>
+    <div class="ot-label">สั่งกลับบ้าน</div>
+    <div class="ot-sub">Takeaway</div>
+  </div>
+</div>
+
+<!-- TABLE SELECTION -->
+<div class="table-screen" id="tableScreen">
+  <div class="table-title">🪑 เลือกโต๊ะ</div>
+  <button class="back-btn-center" onclick="animateBtn(this, showTypeSelect)">← ย้อนกลับ</button>
+  <div class="table-grid">
+    <div class="table-card" onclick="selectTable(1, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 1</span></div>
+    <div class="table-card" onclick="selectTable(2, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 2</span></div>
+    <div class="table-card" onclick="selectTable(3, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 3</span></div>
+    <div class="table-card" onclick="selectTable(4, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 4</span></div>
+    <div class="table-card" onclick="selectTable(5, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 5</span></div>
+    <div class="table-card" onclick="selectTable(6, this)"><span class="table-icon">🪑</span><span class="table-num">โต๊ะ 6</span></div>
+  </div>
+</div>
+
+<!-- PAYMENT CHOICE MODAL -->
+<div class="overlay" id="payChoiceOverlay">
+  <div class="modal">
+    <h3>💳 เลือกวิธีชำระเงิน</h3>
+    <div style="font-size:0.85rem;color:var(--text-muted);text-align:center;margin-bottom:4px">ยอดรวม <span style="color:var(--accent);font-weight:700;font-size:1.1rem" id="payChoiceTotal"></span></div>
+    <div class="pay-choice-grid">
+      <button class="pay-choice-btn cash" onclick="animateBtn(this,function(){choosePay('cash')})">
+        <span class="pci">💵</span>
+        <span class="pct">เงินสด</span>
+        <span class="pcs">Cash</span>
+      </button>
+      <button class="pay-choice-btn qr" onclick="animateBtn(this,function(){choosePay('qr')})">
+        <span class="pci">📱</span>
+        <span class="pct">โอนเงิน</span>
+        <span class="pcs">PromptPay / QR</span>
+      </button>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn-cancel" onclick="animateBtn(this,function(){closeOverlay('payChoiceOverlay')})">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">🍲 ชาบู POS</div>
+  <button id="headerBadge" class="table-badge" style="display:none" onclick="openChangeTable()"></button>
+  <button id="headerBackBtn" style="position:static;margin-left:8px;display:none;font-size:0.72rem;padding:4px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;" onclick="animateBtn(this, showTypeSelect)">↩ เปลี่ยน</button>
+  <span class="clock" id="clock" style="margin-left:12px">k" id="clock"></span>
+</header>
+
+<div class="layout" id="mainLayout" style="display:none">
+
+  <!-- BUILDER -->
+  <div class="builder-panel" id="builderPanel">
+
+    <!-- STEP BAR -->
+    <div class="step-bar" id="stepBar"></div>
+
+    <!-- CURRENT BOWL PREVIEW -->
+    <div class="current-bowl-preview" id="bowlPreview" style="display:none">
+      <div class="preview-title">🍜 ชามที่กำลังเลือก</div>
+      <div class="preview-items" id="previewItems"></div>
+    </div>
+
+    <!-- STEP CONTENT -->
+    <div id="stepContent"></div>
+
+    <!-- NAV -->
+    <div class="step-nav" id="stepNav"></div>
+
+    <!-- ADD ANOTHER BOWL + PAY (shown after bowl complete) -->
+    <div id="addBowlBtn" style="display:none; flex-direction:column; gap:10px;">
+      <button class="btn-add-bowl" onclick="animateBtn(this,function(){startNewBowl()})">
+        🍲 เพิ่มอีก 1 ชาม
+      </button>
+      <button class="btn-add-bowl" onclick="animateBtn(this,function(){openPayChoice()})" style="border-color:var(--green);color:var(--green);background:rgba(63,185,80,0.07);">
+        💳 ชำระเงินได้เลย
+      </button>
+      <button onclick="animateBtn(this,function(){goBackToEdit()})" style="background:none;border:none;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:0.82rem;cursor:pointer;padding:4px;text-decoration:underline;text-underline-offset:3px;">
+        ✏️ อุ้ย! กดผิด ขอกลับไปแก้ที่เลือก
+      </button>
+    </div>
+
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-panel" style="display:none">
+    <div class="summary-header" onclick="toggleSummaryPanel()">
+      <h2>🧾 ออเดอร์ทั้งหมด <span class="summary-toggle-icon" id="summaryToggleIcon">⌄</span></h2>
+      <button class="clear-all-btn" onclick="event.stopPropagation();clearAll()">ล้างทั้งหมด</button>
+    </div>
+    <div class="summary-orders" id="summaryOrders">
+      <div class="empty-summary">
+        <span class="big">🍲</span>
+        ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!
+      </div>
+    </div>
+    <div class="summary-footer">
+      <div class="total-row">
+        <div class="total-left">
+          <span class="total-label">รวมทั้งหมด</span>
+          <span class="total-sub">(<span id="bowlCount">0</span> ชาม)</span>
+        </div>
+        <span class="total-amount" id="grandTotal">฿0</span>
+        <button class="pay-btn pay-cash" id="btnCash" onclick="animateBtn(this,function(){openPayChoice()})" disabled>
+          <span class="icon">💳</span>ชำระเงิน
+        </button>
+      </div>
+      <button class="pay-btn pay-qr" id="btnQR" onclick="animateBtn(this,function(){openPayChoice()})" disabled style="display:none"></button>
+    </div>
+  </div>
+
+</div>
+
+<!-- CASH MODAL -->
+<div class="overlay" id="cashOverlay">
+  <div class="modal">
+    <h3>💵 ชำระด้วยเงินสด</h3>
+    <div class="modal-orders" id="cashOrderList"></div>
+    <div class="modal-total"><span>ยอดรวม</span><span id="cashTotalAmt"></span></div>
+    <label class="cash-label">รับเงินมา (บาท)</label>
+    <input type="number" class="cash-input" id="cashInput" placeholder="0" oninput="calcChange()" min="0" inputmode="decimal" step="1" onkeydown="return event.key!=='-'&&event.key!=='e'">
+    <div class="change-row" id="changeRow" style="display:none">
+      <span>เงินทอน</span><span class="change-val" id="changeVal">฿0</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="animateBtn(this,function(){closeOverlay('cashOverlay')})">ยกเลิก</button>
+      <button class="btn-confirm" id="btnCashConfirm" onclick="animateBtn(this,function(){confirmPay('cash')})" disabled>✓ ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR MODAL -->
+<div class="overlay" id="qrOverlay">
+  <div class="modal">
+    <h3>📱 โอนเงิน / QR</h3>
+    <div class="modal-orders" id="qrOrderList"></div>
+    <div class="qr-box">🔲</div>
+    <div class="qr-amount" id="qrAmt"></div>
+    <div class="qr-sub">สแกน PromptPay เพื่อชำระ</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="animateBtn(this,function(){closeOverlay('qrOverlay')})">ยกเลิก</button>
+      <button class="btn-confirm" onclick="animateBtn(this,function(){confirmPay('qr')})">✓ รับเงินแล้ว</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS MODAL -->
+<div class="overlay" id="successOverlay">
+  <div class="modal">
+    <span class="success-icon">✅</span>
+    <h3 style="text-align:center;color:var(--green);margin-bottom:10px">ชำระเงินสำเร็จ!</h3>
+    <div class="receipt" id="receiptEl"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <button class="btn-confirm" style="width:100%" onclick="animateBtn(this,function(){newOrderSameTable()})">➕ รับออเดอร์โต๊ะต่อไป</button>
+      <button class="btn-confirm" style="width:100%;background:none;border:2px solid var(--accent);color:var(--accent);" onclick="animateBtn(this,function(){resetPOS()})">🏠 จบการใช้งาน / โต๊ะใหม่</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const IMG = {
+  'เนื้อหมูสามชั้น': 'images/pork-belly.png',
+  'เนื้ออกไก่': 'images/chicken-breast.png',
+  'สันคอเนื้อหมู': 'images/pork-neck.png',
+  'สาหร่ายวากาเมะ': 'images/wakame.png',
+  'มันฝรั่ง': 'images/potato.png',
+  'เนื้อวัว': 'images/beef.png',
+  'เห็ดเข็มทอง': 'images/enoki.png',
+  'เห็ดหอม': 'images/shiitake.png',
+  'เห็ดออรินจี': 'images/eringi.png',
+  'แครอท': 'images/carrot.png',
+  'กะหล่ำปลีหั่นฝอย': 'images/cabbage.png',
+  'ข้าวโพดอ่อน': 'images/baby-corn.png',
+  'ชิกุวะ': 'images/chikuwa.png',
+  'นักเก็ตปู': 'images/crab-nugget.png',
+  'ปอ๊ด': 'images/pod.png',
+  'ผักกวางตุ้งฮ่องเต้': 'images/bok-choy.png',
+  'ผักกาดขาว': 'images/napa-cabbage.png',
+  'ผักบุ้งจีน': 'images/morning-glory.png',
+  'ฟองเต้าหู้แท่ง': 'images/tofu-skin-stick.png',
+  'ฟองเต้าหู้สามเหลี่ยม': 'images/tofu-skin-triangle.png',
+  'ปูอัด': 'images/crab-stick.png',
+  'ลูกชิ้นกุ้ง': 'images/shrimp-ball.png',
+  'ลูกชิ้นชิชาโมะ': 'images/shishamo-ball.png',
+  'ลูกชิ้นปลา': 'images/fish-ball.png',
+  'วุ้นเส้น': 'images/glass-noodle.png',
+  'โบโลน่าหมูและไก่': 'images/bologna.png',
+  'ฟองเต้าหู้ทอด': 'images/fried-tofu-skin.png',
+  'เต้าหู้ชีส': 'images/cheese-tofu.png',
+  'เต้าหู้ปลาสี่เหลี่ยม': 'images/fish-tofu-square.png',
+  'เต้าหู้รูปปลา': 'images/fish-tofu.png',
+  'โบโลน่าหมูและไก่': 'images/bologna2.png',
+  'ไส้กรอกชีส': 'images/cheese-sausage.png',
+  'ไส้กรอกหมู': 'images/pork-sausage.png',
+  'ช็อคโกแลตชีสเค้ก': 'images/chocolate-cheesecake.png',
+  'ชีสเค้ก': 'images/cheesecake.png',
+};
+
+const MENU = {
+  meats: [
+    { id:'m1', name:'เนื้อวัว',       price:99, img:'เนื้อวัว',       weight:'~100g/2ไม้', cat:'เนื้อสัตว์' },
+    { id:'m2', name:'เนื้อหมูสามชั้น', price:79, img:'เนื้อหมูสามชั้น', weight:'~120g/2ไม้', cat:'เนื้อสัตว์' },
+    { id:'m3', name:'เนื้ออกไก่',     price:69, img:'เนื้ออกไก่',     weight:'~120g/2ไม้', cat:'เนื้อสัตว์' },
+    { id:'m4', name:'สันคอเนื้อหมู',  price:79, img:'สันคอเนื้อหมู',  weight:'~130g/2ไม้', cat:'เนื้อสัตว์' },
+  ],
+  vegs: [
+    // หมวดผัก
+    { id:'v1',  name:'ผักกวางตุ้งฮ่องเต้', price:25, img:'ผักกวางตุ้งฮ่องเต้', weight:'~60g/ไม้',  cat:'ผัก' },
+    { id:'v2',  name:'ผักกาดขาว',          price:25, img:'ผักกาดขาว',          weight:'~80g/ชิ้น', cat:'ผัก' },
+    { id:'v3',  name:'ผักบุ้งจีน',         price:25, img:'ผักบุ้งจีน',         weight:'~50g/กำ',   cat:'ผัก' },
+    { id:'v4',  name:'กะหล่ำปลีหั่นฝอย',  price:20, img:'กะหล่ำปลีหั่นฝอย',  weight:'~70g/จาน',  cat:'ผัก' },
+    { id:'v5',  name:'แครอท',              price:25, img:'แครอท',              weight:'~80g/2ไม้', cat:'ผัก' },
+    { id:'v6',  name:'ข้าวโพดอ่อน',        price:25, img:'ข้าวโพดอ่อน',        weight:'~60g/2ไม้', cat:'ผัก' },
+    { id:'v7',  name:'มันฝรั่ง',           price:25, img:'มันฝรั่ง',           weight:'~90g/2ไม้', cat:'ผัก' },
+    { id:'v8',  name:'สาหร่ายวากาเมะ',     price:29, img:'สาหร่ายวากาเมะ',     weight:'~40g/จาน',  cat:'ผัก' },
+    // หมวดเห็ด
+    { id:'v9',  name:'เห็ดเข็มทอง', price:35, img:'เห็ดเข็มทอง', weight:'~50g/2ไม้', cat:'เห็ด' },
+    { id:'v10', name:'เห็ดหอม',     price:40, img:'เห็ดหอม',     weight:'~60g/2ไม้', cat:'เห็ด' },
+    { id:'v11', name:'เห็ดออรินจี', price:40, img:'เห็ดออรินจี', weight:'~70g/2ไม้', cat:'เห็ด' },
+    // หมวดเต้าหู้
+    { id:'v12', name:'เต้าหู้ชีส',           price:39, img:'เต้าหู้ชีส',           weight:'~50g/2ไม้',  cat:'เต้าหู้' },
+    { id:'v13', name:'เต้าหู้ปลาสี่เหลี่ยม',  price:35, img:'เต้าหู้ปลาสี่เหลี่ยม',  weight:'~60g/2ไม้',  cat:'เต้าหู้' },
+    { id:'v14', name:'เต้าหู้รูปปลา',         price:35, img:'เต้าหู้รูปปลา',         weight:'~50g/2ไม้',  cat:'เต้าหู้' },
+    { id:'v15', name:'ฟองเต้าหู้แท่ง',        price:30, img:'ฟองเต้าหู้แท่ง',        weight:'~40g/2ไม้',  cat:'เต้าหู้' },
+    { id:'v22', name:'ฟองเต้าหู้ทอด',         price:35, img:'ฟองเต้าหู้ทอด',         weight:'~45g/ไม้',   cat:'เต้าหู้' },
+    { id:'v23', name:'ฟองเต้าหู้สามเหลี่ยม',  price:35, img:'ฟองเต้าหู้สามเหลี่ยม',  weight:'~50g/2ไม้',  cat:'เต้าหู้' },
+    // หมวดแปรรูป
+    { id:'v16', name:'ไส้กรอกหมู',       price:39, img:'ไส้กรอกหมู',       weight:'~80g/ไม้',  cat:'แปรรูป' },
+    { id:'v17', name:'ไส้กรอกชีส',       price:45, img:'ไส้กรอกชีส',       weight:'~80g/2ไม้', cat:'แปรรูป' },
+    { id:'v18', name:'ชิกุวะ',           price:39, img:'ชิกุวะ',           weight:'~60g/2ไม้', cat:'แปรรูป' },
+    { id:'v19', name:'นักเก็ตปู',        price:45, img:'นักเก็ตปู',        weight:'~50g/2ไม้', cat:'แปรรูป' },
+    { id:'v20', name:'ปูอัด',            price:39, img:'ปูอัด',            weight:'~60g/2ไม้', cat:'แปรรูป' },
+    { id:'v21', name:'ลูกชิ้นกุ้ง',     price:45, img:'ลูกชิ้นกุ้ง',     weight:'~60g/2ไม้', cat:'แปรรูป' },
+    { id:'v26', name:'ลูกชิ้นชิชาโมะ',  price:45, img:'ลูกชิ้นชิชาโมะ',  weight:'~55g/2ไม้', cat:'แปรรูป' },
+    { id:'v27', name:'ลูกชิ้นปลา',      price:39, img:'ลูกชิ้นปลา',      weight:'~60g/2ไม้', cat:'แปรรูป' },
+    { id:'v24', name:'วุ้นเส้น',           price:25, img:'วุ้นเส้น',           weight:'~80g/จาน',  cat:'แปรรูป' },
+    { id:'v25', name:'โบโลน่าหมูและไก่',  price:39, img:'โบโลน่าหมูและไก่',  weight:'~70g/2ไม้', cat:'แปรรูป' },
+  ],
+  soups: [
+    { id:'s1', name:'ซุปใส', price:0, emoji:'🫙', desc:'รสอ่อน หวานธรรมชาติ' },
+    { id:'s2', name:'ซุปสุกี้', price:0, emoji:'🍲', desc:'รสจัด เผ็ดนิดหน่อย' },
+    { id:'s3', name:'ซุปมาล่า', price:20, emoji:'🌶️', desc:'เผ็ดจัด +฿20' },
+  ],
+  sauces: [
+    { id:'sc1', name:'น้ำจิ้มงาถั่ว', price:0, emoji:'🥜', desc:'รสหวานมัน กลิ่นงา' },
+    { id:'sc2', name:'น้ำจิ้มพอสซึ', price:0, emoji:'🍶', desc:'รสเปรี้ยวอ่อน ญี่ปุ่น' },
+    { id:'sc3', name:'น้ำจิ้มสุกี้', price:0, emoji:'🌿', desc:'รสจัด เผ็ดหวาน' },
+  ],
+  desserts: [
+    { id:'d1', name:'ชีสเค้ก', price:79,img:'ชีสเค้ก',  desc:'ชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
+    { id:'d2', name:'ช็อคโกแลตชีสเค้ก', price:79, img:'ช็อคโกแลตชีสเค้ก', desc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
+  ]
+};
+
+const STEPS = [
+  { id:'meat', label:'เนื้อสัตว์', icon:'🥩' },
+  { id:'veg', label:'ผัก/เครื่อง', icon:'🥬' },
+  { id:'soup', label:'น้ำซุป', icon:'🍲' },
+  { id:'sauce', label:'น้ำจิ้ม', icon:'🥜' },
+  { id:'dessert', label:'ของหวาน', icon:'🍰' },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let completedBowls = []; // array of bowl objects
+let currentBowl = null;
+let currentStep = 0;
+let lastPayInfo = {};
+
+// ============================================================
+// CLOCK
+// ============================================================
+function updateClock() {
+  const t = new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('clock').textContent = t + ' น.';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// BOWL HELPERS
+// ============================================================
+function newBowl() {
+  return { id: Date.now(), meats:[], vegs:[], soups:[], sauces:[], desserts:[] };
+}
+
+function bowlTotal(bowl) {
+  const m = bowl.meats.reduce((s,i)=>s+i.price, 0);
+  const v = bowl.vegs.reduce((s,i)=>s+i.price, 0);
+  const s = bowl.soups.reduce((a,i)=>a+i.price,0);
+  const sc = bowl.sauces.reduce((a,i)=>a+i.price,0);
+  const d = bowl.desserts.reduce((a,i)=>a+i.price,0);
+  return m + v + s + sc + d;
+}
+
+function calcGrandTotal() {
+  return completedBowls.reduce((s,b)=>s+bowlTotal(b), 0);
+}
+
+// ============================================================
+// RENDER STEP BAR
+// ============================================================
+function renderStepBar() {
+  if (!currentBowl) { document.getElementById('stepBar').innerHTML = ''; return; }
+  let html = '';
+  STEPS.forEach((s, i) => {
+    const cls = i < currentStep ? 'done' : i === currentStep ? 'active' : '';
+    const label = i < currentStep ? '✓' : s.icon;
+    html += `<div class="step-item ${cls}">
+      <div class="step-circle">${label}</div>
+      <div class="step-label">${s.label}</div>
+    </div>`;
+    if (i < STEPS.length - 1) {
+      html += `<div class="step-line ${i < currentStep ? 'done' : ''}"></div>`;
+    }
+  });
+  document.getElementById('stepBar').innerHTML = html;
+}
+
+// ============================================================
+// RENDER PREVIEW
+// ============================================================
+function groupItems(arr, emoji) {
+  const map = {};
+  const order = [];
+  arr.forEach(function(i) {
+    if (!map[i.name]) { map[i.name] = { item: i, qty: 0 }; order.push(i.name); }
+    map[i.name].qty++;
+  });
+  return order.map(function(name) {
+    const g = map[name];
+    const qty = g.qty;
+    const price = g.item.price;
+    const em = emoji || g.item.emoji || '';
+    const total = price * qty;
+    const priceStr = price === 0 ? 'ฟรี' : '฿' + price + ' x' + qty + ' = ฿' + total;
+    const nameStr = em + ' ' + name + (qty > 1 ? '' : '');
+    return { nameStr, priceStr, isFree: price === 0 };
+  });
+}
+
+function renderPreview() {
+  if (!currentBowl) {
+    document.getElementById('bowlPreview').style.display = 'none';
+    return;
+  }
+  document.getElementById('bowlPreview').style.display = '';
+
+  const countMap = {};
+  const orderMap = {};
+  let order = 0;
+  function addChip(key) {
+    if (!countMap[key]) { countMap[key] = 0; orderMap[key] = order++; }
+    countMap[key]++;
+  }
+  currentBowl.meats.forEach(function(i) { addChip(i.name); });
+  currentBowl.vegs.forEach(function(i) { addChip(i.name); });
+  currentBowl.soups.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
+  currentBowl.sauces.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
+  currentBowl.desserts.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
+
+  const keys = Object.keys(countMap).sort(function(a,b) { return orderMap[a]-orderMap[b]; });
+
+  if (keys.length === 0) {
+    document.getElementById('previewItems').innerHTML = '<span class="preview-chip">ยังไม่ได้เลือก</span>';
+    return;
+  }
+
+  var html = '';
+  keys.forEach(function(key) {
+    var qty = countMap[key];
+    var badge = qty > 1
+      ? '<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;border-radius:50%;width:15px;height:15px;font-size:0.58rem;display:flex;align-items:center;justify-content:center;font-weight:700;">' + qty + '</span>'
+      : '';
+    html += '<span class="preview-chip active" style="position:relative;' + (qty>1?'margin-right:4px;':'') + '">' + key + badge + '</span>';
+  });
+  document.getElementById('previewItems').innerHTML = html;
+}
+
+function renderStepContent() {
+  if (!currentBowl) {
+    document.getElementById('stepContent').innerHTML = '';
+    document.getElementById('stepNav').innerHTML = '';
+    return;
+  }
+
+  const step = STEPS[currentStep];
+  let html = '';
+
+  if (step.id === 'meat') {
+    html = renderMultiSelect('meats', MENU.meats, currentBowl.meats);
+    renderNav(currentBowl.meats.length > 0, false, '→ เลือกผัก/เครื่อง');
+  } else if (step.id === 'veg') {
+    html = renderMultiSelect('vegs', MENU.vegs, currentBowl.vegs);
+    renderNav(currentBowl.vegs.length > 0, true, '→ เลือกน้ำซุป');
+  } else if (step.id === 'soup') {
+    html = renderMultiSelect('soups', MENU.soups, currentBowl.soups);
+    renderNav(currentBowl.soups.length > 0, true, '→ เลือกน้ำจิ้ม');
+  } else if (step.id === 'sauce') {
+    html = renderMultiSelect('sauces', MENU.sauces, currentBowl.sauces);
+    renderNav(currentBowl.sauces.length > 0, true, '→ ของหวาน');
+  } else if (step.id === 'dessert') {
+    html = renderMultiSelect('desserts', MENU.desserts, currentBowl.desserts, (function() {
+    const noneSelected = currentBowl.desserts.length === 0;
+    return '<div class="item-card ' + (noneSelected ? 'selected' : '') + '" data-id="desserts-none"'
+      + ' style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;"'
+      + ' onclick="clearDesserts()">'
+      + (noneSelected ? '<div class="check-badge">✓</div>' : '')
+      + '<span style="font-size:1.4rem">🚫</span>'
+      + '<span style="font-size:0.95rem;font-weight:600;color:var(--text-muted)">ไม่ต้องการของหวาน</span>'
+      + '</div>';
+  })(), true);
+    renderNav(true, true, '✓ เพิ่มชามนี้');
+  }
+
+  document.getElementById('stepContent').innerHTML = html;
+}
+
+let vegCatFilter = 'ทั้งหมด';
+
+function getVegCats(items) {
+  const cats = ['ทั้งหมด', ...new Set(items.map(i => i.cat).filter(Boolean))];
+  return cats;
+}
+
+function renderMultiSelect(field, items, selected, extraCard, optionalTag) {
+  const hasCats = items.some(i => i.cat);
+  const cats = hasCats ? getVegCats(items) : [];
+  const filtered = (hasCats && vegCatFilter !== 'ทั้งหมด')
+    ? items.filter(i => i.cat === vegCatFilter)
+    : items;
+
+  const catTabsHtml = hasCats ? `<div class="cat-filter">
+    ${cats.map(c => `<button class="cat-tab ${c===vegCatFilter?'active':''}" onclick="setVegCat('${c}')">${c}</button>`).join('')}
+  </div>` : '';
+
+  return `<div class="order-section">
+    <div class="section-header">
+      <div class="section-num">${currentStep+1}</div>
+      <div>
+        <div class="section-title">${STEPS[currentStep].icon} ${STEPS[currentStep].label}</div>
+        <div class="section-subtitle">เลือกได้หลายอย่าง</div>
+      </div>
+      ${optionalTag ? '<span class="optional-tag">Optional</span>' : ''}
+    </div>
+    <div class="section-body">
+      ${catTabsHtml}
+      <div class="item-grid">
+        ${filtered.map(item => {
+          const imgSrc = item.img ? IMG[item.img] : null;
+          const qty = selected.filter(i=>i.id===item.id).length;
+          return `<div class="item-card ${qty>0?'selected':''}" data-id="${field}-${item.id}">
+            ${qty>0?'<div class="check-badge">✓</div>':''}
+            ${imgSrc
+              ? `<img class="item-img" src="${imgSrc}" alt="${item.name}" onclick="addItem('${field}','${item.id}')" style="cursor:pointer" />`
+              : `<span class="item-emoji" onclick="addItem('${field}','${item.id}')" style="cursor:pointer">${item.emoji||'🍽️'}</span>`
+            }
+            <div class="item-name" onclick="addItem('${field}','${item.id}')" style="cursor:pointer">${item.name}</div>
+            <div class="item-meta">
+    
+              <span class="weight">${item.weight||item.desc||''}</span>
+              
+              <span class="price-tag">฿${item.price}</span>
+            </div>
+            <div class="qty-row">
+              <button class="qty-btn minus" onclick="removeItem('${field}','${item.id}')" ${qty===0?'disabled':''}>−</button>
+              <span class="qty-num">${qty}</span>
+              <button class="qty-btn plus" onclick="addItem('${field}','${item.id}')">+</button>
+            </div>
+          </div>`;
+        }).join('')}
+        ${extraCard || ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function setVegCat(cat) {
+  vegCatFilter = cat;
+  renderStepContent();
+}
+
+function renderSingleSelect(field, items, selected, title, subtitle) {
+  return `<div class="order-section">
+    <div class="section-header">
+      <div class="section-num">${currentStep+1}</div>
+      <div>
+        <div class="section-title">${STEPS[currentStep].icon} ${title}</div>
+        <div class="section-subtitle">${subtitle}</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="item-grid">
+        ${items.map(item => `
+          <div class="item-card ${selected&&selected.id===item.id?'selected-single':''}" data-id="single-${field}-${item.id}" onclick="selectSingle('${field}','${item.id}')">
+            <div class="check-badge">✓</div>
+            <span class="item-emoji">${item.emoji||'🍽️'}</span>
+            <div class="item-name">${item.name}</div>
+            <div class="item-name" style="color:var(--text-muted);font-size:0.7rem">${item.desc||''}</div>
+            <div class="item-price">${item.price>0?'฿'+item.price:'ฟรี'}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDessertStep() {
+  const sel = currentBowl.dessert;
+  return `<div class="order-section">
+    <div class="section-header">
+      <div class="section-num">${currentStep+1}</div>
+      <div>
+        <div class="section-title">🍰 ชีสเค้ก</div>
+        <div class="section-subtitle">เลือกหรือข้ามได้</div>
+      </div>
+      <span class="optional-tag">Optional</span>
+    </div>
+    <div class="section-body">
+      <div class="item-grid">
+        <div class="item-card ${!sel?'selected-single':''}" data-id="single-dessert-null" onclick="selectSingle('dessert',null)">
+          <div class="check-badge">✓</div>
+          <span class="item-emoji">🚫</span>
+          <div class="item-name">ไม่ต้องการ</div>
+          <div class="item-price" style="color:var(--text-muted)">—</div>
+        </div>
+        ${MENU.desserts.map(item => `
+          <div class="item-card ${sel&&sel.id===item.id?'selected-single':''}" data-id="single-dessert-${item.id}" onclick="selectSingle('dessert','${item.id}')">
+            <div class="check-badge">✓</div>
+            <span class="item-emoji">${item.emoji||'🍽️'}</span>
+            <div class="item-name">${item.name}</div>
+            <div class="item-price">฿${item.price}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderNav(canNext, canBack, nextLabel) {
+  let html = '';
+  // Show cancel button on step 1 if there are already completed bowls (กดผิดปุ่ม)
+  if (currentStep === 0 && completedBowls.length > 0) {
+    html += `<button class="btn-back" onclick="cancelNewBowl()" style="border-color:var(--red);color:var(--red)">✕ ยกเลิกชามนี้</button>`;
+  } else if (canBack) {
+    html += `<button class="btn-back" onclick="prevStep()">← ย้อนกลับ</button>`;
+  }
+  const label = currentStep === STEPS.length-1 ? '✓ เพิ่มชามนี้' : nextLabel;
+  html += `<button class="btn-next" id="btnNext" ${canNext?'':'disabled'} onclick="nextStep()">${label}</button>`;
+  document.getElementById('stepNav').innerHTML = html;
+}
+
+function cancelNewBowl() {
+  currentBowl = null;
+  currentStep = 0;
+  renderDone();
+}
+
+// ============================================================
+// INTERACTION
+// ============================================================
+function addItem(field, itemId) {
+  if (!currentBowl) return;
+  const sourceMap = { meats: MENU.meats, vegs: MENU.vegs, soups: MENU.soups, sauces: MENU.sauces, desserts: MENU.desserts };
+  const source = sourceMap[field] || [];
+  const item = source.find(i=>i.id===itemId);
+  currentBowl[field].push(item);
+  renderStepContent();
+  renderPreview();
+  flashCard(field, itemId);
+}
+
+function removeItem(field, itemId) {
+  if (!currentBowl) return;
+  const arr = currentBowl[field];
+  const idx = arr.findLastIndex(i=>i.id===itemId);
+  if (idx >= 0) arr.splice(idx, 1);
+  renderStepContent();
+  renderPreview();
+  if (currentBowl[field].some(i=>i.id===itemId)) flashCard(field, itemId);
+}
+
+function flashCard(field, itemId) {
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`.item-card[data-id="${field}-${itemId}"]`);
+    if (!card) return;
+    void card.offsetWidth;
+    card.classList.add('just-selected');
+    setTimeout(() => card.classList.remove('just-selected'), 250);
+  });
+}
+
+function selectSingle(field, itemId) {
+  if (!currentBowl) return;
+  if (itemId === null) {
+    currentBowl[field] = null;
+  } else {
+    const sources = { soup: MENU.soups, sauce: MENU.sauces, dessert: MENU.desserts };
+    const source = sources[field] || [];
+    currentBowl[field] = source.find(i=>i.id===itemId);
+  }
+  renderStepContent();
+  renderPreview();
+  // Flash AFTER re-render so card exists in DOM
+  requestAnimationFrame(() => {
+    const key = itemId === null ? 'single-dessert-null' : `single-${field}-${itemId}`;
+    const card = document.querySelector(`.item-card[data-id="${key}"]`);
+    if (!card) return;
+    void card.offsetWidth;
+    card.classList.add('just-selected');
+    setTimeout(() => card.classList.remove('just-selected'), 450);
+  });
+}
+
+function nextStep() {
+  if (currentStep < STEPS.length - 1) {
+    currentStep++;
+    vegCatFilter = 'ทั้งหมด';
+    renderStepBar();
+    renderStepContent();
+    renderPreview();
+  } else {
+    // Finish bowl
+    completedBowls.push({...currentBowl});
+    currentBowl = null;
+    currentStep = 0;
+    renderDone();
+  }
+}
+
+function goBackToEdit() {
+  if (completedBowls.length === 0) return;
+  currentBowl = completedBowls.pop();
+  currentStep = STEPS.length - 1;
+  document.getElementById('addBowlBtn').style.display = 'none';
+  renderStepBar();
+  renderStepContent();
+  renderPreview();
+  renderSummary();
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    currentStep--;
+    renderStepBar();
+    renderStepContent();
+  }
+}
+
+function renderDone() {
+  document.getElementById('stepBar').innerHTML = '';
+  document.getElementById('bowlPreview').style.display = 'none';
+  document.getElementById('stepNav').innerHTML = '';
+  document.getElementById('stepContent').innerHTML = `
+    <div style="text-align:center;padding:30px 20px;color:var(--green)">
+      <div style="font-size:3rem;margin-bottom:10px">🎉</div>
+      <div style="font-family:'Prompt',sans-serif;font-size:1.1rem;font-weight:700">เพิ่มชามแล้ว!</div>
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-top:6px">กด "เพิ่มอีก 1 ชาม" หรือชำระเงินได้เลย</div>
+    </div>
+  `;
+  document.getElementById('addBowlBtn').style.display = 'flex';
+  expandSummary();
+  renderSummary();
+}
+
+function toggleSummaryPanel() {
+  const panel = document.querySelector('.summary-panel');
+  if (panel.classList.contains('collapsed')) {
+    panel.classList.remove('collapsed');
+    panel.classList.add('expanded');
+  } else {
+    panel.classList.remove('expanded');
+    panel.classList.add('collapsed');
+  }
+}
+
+function collapseSummary() {
+  const panel = document.querySelector('.summary-panel');
+  panel.classList.add('collapsed');
+  panel.classList.remove('expanded');
+}
+
+function expandSummary() {
+  const panel = document.querySelector('.summary-panel');
+  panel.classList.remove('collapsed');
+  panel.classList.add('expanded');
+}
+
+function startNewBowl() {
+  document.getElementById('addBowlBtn').style.display = 'none';
+  collapseSummary();
+  currentBowl = newBowl();
+  currentStep = 0;
+  renderStepBar();
+  renderStepContent();
+  renderPreview();
+}
+
+// ============================================================
+// SUMMARY
+// ============================================================
+function renderSummary() {
+  const el = document.getElementById('summaryOrders');
+  const panel = document.querySelector('.summary-panel');
+  if (completedBowls.length === 0) {
+    panel.style.display = 'none';
+    panel.classList.remove('visible');
+    el.innerHTML = `<div class="empty-summary"><span class="big">🍲</span>ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!</div>`;
+    document.getElementById('btnCash').disabled = true;
+  } else {
+    panel.style.display = 'flex';
+    panel.classList.add('visible');
+    el.innerHTML = completedBowls.map((bowl, idx) => {
+      const rows = [
+        ...groupItems(bowl.meats,'🥩').map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+        ...groupItems(bowl.vegs,'🥬').map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+        ...groupItems(bowl.soups).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+        ...groupItems(bowl.sauces).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+        ...groupItems(bowl.desserts).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ].filter(Boolean).join('');
+      return `<div class="bowl-card ${idx===completedBowls.length-1?'new':''}">
+        <div class="bowl-header">
+          <span class="bowl-title">🍲 ชามที่ ${idx+1}</span>
+          <span class="bowl-price">฿${bowlTotal(bowl)}</span>
+          <button class="bowl-remove" onclick="removeBowl(${idx})" title="ลบชามนี้">✕</button>
+        </div>
+        <div class="bowl-items">${rows}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('btnCash').disabled = false;
+  }
+  document.getElementById('bowlCount').textContent = completedBowls.length;
+  document.getElementById('grandTotal').textContent = `฿${calcGrandTotal()}`;
+}
+
+function removeBowl(idx) {
+  completedBowls.splice(idx, 1);
+  renderSummary();
+}
+
+function clearAll() {
+  completedBowls = [];
+  currentBowl = null;
+  currentStep = 0;
+  renderSummary();
+  startNewBowl();
+}
+
+// ============================================================
+// PAYMENT
+// ============================================================
+function buildOrderListHtml(targetId) {
+  document.getElementById(targetId).innerHTML = completedBowls.map(function(bowl, idx) {
+    var rows = '';
+    groupItems(bowl.meats,'🥩').forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    groupItems(bowl.vegs,'🥬').forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    groupItems(bowl.soups).forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    groupItems(bowl.sauces).forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    groupItems(bowl.desserts).forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    return '<div class="modal-bowl"><div class="modal-bowl-title">🍲 ชามที่ ' + (idx+1) + ' — ฿' + bowlTotal(bowl) + '</div>' + rows + '</div>';
+  }).join('');
+}
+
+
+function openPay(type) {
+  const total = calcGrandTotal();
+  if (type === 'cash') {
+    buildOrderListHtml('cashOrderList');
+    document.getElementById('cashTotalAmt').textContent = `฿${total}`;
+    document.getElementById('cashInput').value = '';
+    document.getElementById('changeRow').style.display = 'none';
+    document.getElementById('btnCashConfirm').disabled = true;
+    document.getElementById('cashOverlay').classList.add('show');
+    setTimeout(()=>document.getElementById('cashInput').focus(), 200);
+  } else {
+    buildOrderListHtml('qrOrderList');
+    document.getElementById('qrAmt').textContent = `฿${total}`;
+    document.getElementById('qrOverlay').classList.add('show');
+  }
+}
+
+function calcChange() {
+  const total = calcGrandTotal();
+  const rawVal = document.getElementById('cashInput').value;
+  const recv = Math.max(0, parseFloat(rawVal) || 0);
+  if (parseFloat(rawVal) < 0) document.getElementById('cashInput').value = 0;
+  const change = recv - total;
+  const row = document.getElementById('changeRow');
+  const btn = document.getElementById('btnCashConfirm');
+  const v = document.getElementById('changeVal');
+  if (recv > 0) {
+    row.style.display = 'flex';
+    if (change >= 0) {
+      v.textContent = `ทอน ฿${change.toFixed(0)}`;
+      v.style.color = 'var(--green)';
+      btn.disabled = false;
+    } else {
+      v.textContent = `รับมาไม่พอ ⚠️`;
+      v.style.color = 'var(--red,#e83)';
+      btn.disabled = true;
+    }
+  } else {
+    row.style.display = 'none';
+    btn.disabled = true;
+  }
+}
+
+function confirmPay(type) {
+  const total = calcGrandTotal();
+  const recv = type==='cash' ? parseFloat(document.getElementById('cashInput').value) : total;
+  lastPayInfo = { type, bowls: [...completedBowls], total, recv, change: recv-total,
+    time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) };
+  closeOverlay(type==='cash'?'cashOverlay':'qrOverlay');
+  showSuccess();
+}
+
+function showSuccess() {
+  const p = lastPayInfo;
+  const typeLabel = p.type==='cash'?'💵 เงินสด':'📱 โอน/QR';
+  let bowlRows = p.bowls.map((bowl,idx) => {
+    const lines = [
+      ...groupItems(bowl.meats,'🥩').map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ...groupItems(bowl.vegs,'🥬').map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ...groupItems(bowl.soups).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ...groupItems(bowl.sauces).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ...groupItems(bowl.desserts).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+    ].filter(Boolean).join('');
+    return `<div class="receipt-row" style="color:var(--gold);font-weight:600"><span>🍲 ชามที่ ${idx+1}</span><span>฿${bowlTotal(bowl)}</span></div>${lines}`;
+  }).join('<hr class="receipt-divider">');
+
+  let extra = p.type==='cash'
+    ? `<div class="receipt-row"><span>รับมา</span><span>฿${p.recv}</span></div><div class="receipt-row receipt-total"><span>เงินทอน</span><span style="color:var(--green)">฿${p.change}</span></div>`
+    : '';
+
+  document.getElementById('receiptEl').innerHTML = `
+    <div class="receipt-row"><span>🕐 ${p.time}</span><span>${typeLabel}</span></div>
+    <div class="receipt-row"><span>${orderType==='dine'?'🪑 โต๊ะ '+tableNum:'🥡 สั่งกลับบ้าน'}</span></div>
+    <hr class="receipt-divider">
+    ${bowlRows}
+    <hr class="receipt-divider">
+    <div class="receipt-row receipt-total"><span>รวมทั้งหมด</span><span>฿${p.total}</span></div>
+    ${extra}
+  `;
+  document.getElementById('successOverlay').classList.add('show');
+  completedBowls = [];
+  currentBowl = null;
+  currentStep = 0;
+  document.getElementById('addBowlBtn').style.display = 'none';
+  renderSummary();
+  startNewBowl();
+}
+
+function newOrderSameTable() {
+  closeOverlay('successOverlay');
+  completedBowls = [];
+  currentBowl = null;
+  currentStep = 0;
+  startNewBowl();
+  renderSummary();
+  document.getElementById('stepContent').innerHTML = '';
+  document.getElementById('addBowlBtn').style.display = 'none';
+  renderStepBar();
+  renderStepContent();
+  renderPreview();
+}
+
+function resetPOS() {
+  closeOverlay('successOverlay');
+  completedBowls = [];
+  currentBowl = null;
+  currentStep = 0;
+  orderType = null;
+  tableNum = null;
+  document.getElementById('mainLayout').style.display = 'none';
+  document.getElementById('headerBadge').style.display = 'none';
+  document.getElementById('headerBackBtn').style.display = 'none';
+  document.getElementById('addBowlBtn').style.display = 'none';
+  document.getElementById('orderTypeScreen').classList.remove('show');
+  document.getElementById('tableScreen').classList.remove('show');
+  document.getElementById('welcomeScreen').classList.add('show');
+}
+
+
+function closeOverlay(id) {
+  document.getElementById(id).classList.remove('show');
+}
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('show'); });
+});
+
+// ============================================================
+// WELCOME & PAYMENT CHOICE
+// ============================================================
+let orderType = null; // 'dine' | 'takeaway'
+let tableNum = null;
+
+function showWelcome() {
+  document.getElementById('orderTypeScreen').classList.remove('show');
+  document.getElementById('tableScreen').classList.remove('show');
+  document.getElementById('welcomeScreen').classList.add('show');
+}
+
+
+
+function renderDessertMulti() {
+  const selected = currentBowl.desserts;
+  const itemsHtml = MENU.desserts.map(function(item) {
+    const qty = selected.filter(function(i){return i.id===item.id;}).length;
+    const imgSrc = item.img ? IMG[item.img] : null;
+    const imgHtml = imgSrc
+      ? '<img src="' + imgSrc + '" class="item-img">'
+      : '<span class="item-emoji">' + (item.emoji||'🍽️') + '</span>';
+    return '<div class="item-card ' + (qty>0?'selected':'') + '" data-id="desserts-' + item.id + '">'
+      + (qty>0 ? '<div class="check-badge">✓</div>' : '')
+      + imgHtml
+      + '<div class="item-name">' + item.name + '</div>'
+      + '<div class="item-meta"><span class="item-weight">' + (item.desc||'') + '</span>'
+      + ' <span class="item-price">฿' + item.price + '</span></div>'
+      + '<div class="qty-row">'
+      + '<button class="qty-btn minus" onclick="removeItem(\'desserts\',\'' + item.id + '\')">−</button>'
+      + '<span class="qty-num">' + qty + '</span>'
+      + '<button class="qty-btn plus" onclick="addItem(\'desserts\',\'' + item.id + '\')">+</button>'
+      + '</div></div>';
+  }).join('');
+
+  const noneSelected = selected.length === 0;
+  const noneCard = '<div class="item-card ' + (noneSelected?'selected':'') + '" data-id="desserts-none"'
+    + ' style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;"'
+    + ' onclick="clearDesserts()">'
+    + (noneSelected ? '<div class="check-badge">✓</div>' : '')
+    + '<span style="font-size:1.4rem">🚫</span>'
+    + '<span style="font-size:0.95rem;font-weight:600;color:var(--text-muted)">ไม่ต้องการของหวาน</span>'
+    + '</div>';
+
+  return '<div class="order-section">'
+    + '<div class="section-header">'
+    + '<div class="section-num">' + (currentStep+1) + '</div>'
+    + '<div><div class="section-title">🍰 ของหวาน</div>'
+    + '<div class="section-subtitle">เลือกได้หลายอย่าง หรือข้ามก็ได้</div></div>'
+    + '<span class="optional-tag">Optional</span>'
+    + '</div>'
+    + '<div class="section-body"><div class="item-grid">'
+    + itemsHtml
+    + noneCard
+    + '</div></div></div>';
+}
+
+function clearDesserts() {
+  if (!currentBowl) return;
+  currentBowl.desserts = [];
+  renderStepContent();
+  renderPreview();
+  requestAnimationFrame(() => {
+    const card = document.querySelector('.item-card[data-id="desserts-none"]');
+    if (!card) return;
+    void card.offsetWidth;
+    card.classList.add('just-selected');
+    setTimeout(() => card.classList.remove('just-selected'), 450);
+  });
+}
+
+function showTypeSelect() {
+  document.getElementById('welcomeScreen').classList.remove('show');
+  document.getElementById('tableScreen').classList.remove('show');
+  document.getElementById('headerBackBtn').style.display = 'none';
+  document.getElementById('headerBadge').style.display = 'none';
+  document.getElementById('orderTypeScreen').classList.add('show');
+}
+
+function selectType(type, cardEl) {
+  orderType = type;
+  if (cardEl) {
+    cardEl.style.animation = 'none';
+    void cardEl.offsetWidth;
+    cardEl.style.animation = 'cardPop 0.4s ease';
+    setTimeout(() => { cardEl.style.animation = ''; }, 450);
+  }
+  setTimeout(() => {
+    document.getElementById('orderTypeScreen').classList.remove('show');
+    if (type === 'dine') {
+      document.getElementById('tableScreen').classList.add('show');
+    } else {
+      tableNum = null;
+      enterPOS();
+    }
+  }, 350);
+}
+
+function selectTable(num, cardEl) {
+  tableNum = num;
+  if (cardEl) {
+    cardEl.style.animation = 'none';
+    void cardEl.offsetWidth;
+    cardEl.style.animation = 'cardPop 0.4s ease';
+    setTimeout(() => { cardEl.style.animation = ''; }, 450);
+  }
+  setTimeout(() => {
+    document.getElementById('tableScreen').classList.remove('show');
+    enterPOS();
+  }, 350);
+}
+
+function enterPOS() {
+  document.getElementById('mainLayout').style.display = 'flex';
+  startNewBowl();
+
+  const badge = document.getElementById('headerBadge');
+  const backBtn = document.getElementById('headerBackBtn');
+  if (orderType === 'dine' && tableNum) {
+    badge.textContent = '🪑 โต๊ะ ' + tableNum;
+    badge.style.display = 'inline-block';
+  } else if (orderType === 'takeaway') {
+    badge.textContent = '🥡 สั่งกลับบ้าน';
+    badge.style.display = 'inline-block';
+  }
+  backBtn.style.display = 'inline-block';
+}
+
+
+function openChangeTable() {
+  if (orderType !== 'dine') return;
+  const grid = document.getElementById('changeTableGrid');
+  grid.innerHTML = [1,2,3,4,5,6].map(n => `
+    <button id="tbl-btn-${n}" onclick="changeTable(${n})" style="
+      padding:14px 0;border-radius:12px;font-size:1.1rem;font-weight:700;cursor:pointer;
+      font-family:'Prompt',sans-serif;border:2px solid ${n===tableNum?'var(--accent)':'var(--border)'};
+      background:${n===tableNum?'rgba(232,93,48,0.15)':'var(--surface2)'};
+      color:${n===tableNum?'var(--accent)':'var(--text)'};
+    ">โต๊ะ ${n}</button>
+  `).join('');
+  document.getElementById('changeTableModal').style.display = 'flex';
+}
+
+function closeChangeTable() {
+  document.getElementById('changeTableModal').style.display = 'none';
+}
+
+function animateBtn(el, callback, delay) {
+  delay = delay || 350;
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = 'cardPop 0.4s ease';
+  setTimeout(() => { el.style.animation = ''; }, 450);
+  setTimeout(callback, delay);
+}
+
+function changeTable(num) {
+  const btn = document.getElementById('tbl-btn-' + num);
+  // Highlight selected
+  [1,2,3,4,5,6].forEach(n => {
+    const b = document.getElementById('tbl-btn-' + n);
+    if (!b) return;
+    b.style.border = n===num ? '2px solid var(--accent)' : '2px solid var(--border)';
+    b.style.background = n===num ? 'rgba(232,93,48,0.15)' : 'var(--surface2)';
+    b.style.color = n===num ? 'var(--accent)' : 'var(--text)';
+  });
+  if (btn) {
+    btn.style.animation = 'none';
+    void btn.offsetWidth;
+    btn.style.animation = 'cardPop 0.4s ease';
+    setTimeout(() => { btn.style.animation = ''; }, 450);
+  }
+  setTimeout(() => {
+    tableNum = num;
+    closeChangeTable();
+    document.getElementById('headerBadge').textContent = '🪑 โต๊ะ ' + num;
+  }, 350);
+}
+
+function openPayChoice() {
+  document.getElementById('payChoiceTotal').textContent = `฿${calcGrandTotal()}`;
+  document.getElementById('payChoiceOverlay').classList.add('show');
+}
+
+function choosePay(type) {
+  closeOverlay('payChoiceOverlay');
+  openPay(type);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+// startNewBowl() is called inside enterPOS() after welcome screen fades
+</script>
+
+<!-- CHANGE TABLE MODAL -->
+<div id="changeTableModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;" onclick="if(event.target===this)closeChangeTable()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px;width:min(320px,88vw);animation:popIn 0.22s ease;">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:20px;text-align:center;color:var(--text)">🪑 เลือกโต๊ะ</div>
+    <div id="changeTableGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px"></div>
+    <button id="cancelTableBtn" onclick="animateBtn(this, closeChangeTable)" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text-muted);cursor:pointer;font-family:'Sarabun',sans-serif;font-size:0.95rem">ยกเลิก</button>
+  </div>
+</div>
+</body>
+</html>

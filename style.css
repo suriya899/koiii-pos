@@ -1,0 +1,1338 @@
+/* ============================================================
+   KOIII SHABU — POS SYSTEM
+   ไฟล์ CSS หลักของระบบ POS ร้านชาบู Koiii Shabu
+   แก้ไขไฟล์นี้เมื่อต้องการเปลี่ยนสี, ขนาด, หรือรูปแบบการแสดงผล
+   ============================================================ */
+
+
+/* ============================================================
+   1. CSS VARIABLES — ตัวแปรสีและค่าต่างๆ ที่ใช้ซ้ำทั่วทั้งหน้า
+   ถ้าอยากเปลี่ยนสีธีมทั้งระบบ แก้ที่นี่จุดเดียวพอ
+   ============================================================ */
+
+html {
+  background: #0d1117; /* สีพื้นหลังของ browser ก่อนที่ body จะโหลด ป้องกันขอบขาวกะพริบ */
+}
+
+:root {
+  /* --- สีพื้นหลัง (Background Colors) --- */
+  --bg:        #0d1117; /* สีดำเข้มมากสุด — พื้นหลังหลักของทั้งหน้า */
+  --surface:   #161b22; /* สีเทาเข้ม — พื้นหลัง panel เช่น header, summary */
+  --surface2:  #1c2330; /* สีเทาเข้มระดับกลาง — พื้นหลัง sub-section เช่น bowl header */
+  --card:      #21262d; /* สีเทา — พื้นหลังการ์ดสินค้าและ modal */
+  --card-hover:#292e38; /* สีเทาสว่างขึ้นนิด — สีการ์ดตอน hover (เอาเมาส์ชี้) */
+
+  /* --- สีขอบ (Border Colors) --- */
+  --border:    #30363d; /* สีเทาสำหรับเส้นขอบทั่วไป */
+
+  /* --- สีหลัก (Brand Colors) --- */
+  --accent:    #e85d30; /* สีส้มแดง — สีหลักของร้าน ใช้กับปุ่มสำคัญและ highlight */
+  --accent2:   #ff8c5a; /* สีส้มอ่อนกว่า — ใช้กับข้อความ preview ชาม */
+  --gold:      #f0a830; /* สีทอง — ใช้กับราคาและชื่อชาม */
+
+  /* --- สีข้อความ (Text Colors) --- */
+  --text:      #e6edf3; /* สีขาวนวล — ข้อความหลักทั่วไป */
+  --text-muted:#7d8590; /* สีเทากลาง — ข้อความรอง เช่น คำอธิบาย */
+  --text-dim:  #484f58; /* สีเทาเข้ม — ข้อความจาง เช่น placeholder */
+
+  /* --- สีสถานะ (Status Colors) --- */
+  --green:     #3fb950; /* สีเขียว — ยืนยัน, ชำระเงินสำเร็จ, เงินทอน */
+  --blue:      #58a6ff; /* สีฟ้า — ปุ่มโอนเงิน/QR */
+  --red:       #f85149; /* สีแดง — ลบ, ยกเลิก, เตือน */
+  --purple:    #bc8cff; /* สีม่วง — ป้าย Optional (ของหวาน) */
+
+  /* --- สี Step Bar (ขั้นตอนการสั่ง) --- */
+  --step-inactive: #21262d; /* สีวงกลม step ที่ยังไม่ถึง */
+  --step-active:   #e85d30; /* สีวงกลม step ที่กำลังทำอยู่ (สีส้ม) */
+  --step-done:     #3fb950; /* สีวงกลม step ที่ทำเสร็จแล้ว (สีเขียว) */
+}
+
+
+/* ============================================================
+   2. RESET & BASE — รีเซ็ตค่า default ของ browser และตั้งค่าพื้นฐาน
+   ============================================================ */
+
+* {
+  box-sizing: border-box; /* ให้ขนาด element รวม padding และ border เข้าไปด้วย
+                             ปกติ browser คิด padding แยก ทำให้ขนาดเพี้ยน */
+  margin: 0;              /* ล้าง margin default ของทุก element */
+  padding: 0;             /* ล้าง padding default ของทุก element */
+}
+
+html, body {
+  height: 100%; /* ให้ html และ body สูงเต็มหน้าจอ จำเป็นสำหรับ layout แนวตั้ง */
+}
+
+body {
+  font-family: 'Sarabun', sans-serif; /* ฟอนต์หลัก — Sarabun รองรับภาษาไทยสวย */
+  background: var(--bg);              /* สีพื้นหลัง */
+  color: var(--text);                 /* สีข้อความ default */
+  min-height: 100dvh;                 /* dvh = Dynamic Viewport Height รองรับมือถือที่ address bar ซ่อนได้ */
+  height: 100dvh;                     /* ความสูงเต็มหน้าจอจริงๆ บนมือถือ */
+  overflow: hidden;                   /* ซ่อน scrollbar ของ body ให้แต่ละ panel scroll เองแทน */
+  display: flex;                      /* จัดวาง header + layout แนวตั้ง */
+  flex-direction: column;             /* header อยู่บน, layout อยู่ล่าง */
+}
+
+
+/* ============================================================
+   3. HEADER — แถบบนสุด แสดงโลโก้, โต๊ะ, และเวลา
+   ============================================================ */
+
+header {
+  background: var(--surface);              /* พื้นหลังสีเทาเข้ม */
+  border-bottom: 1px solid var(--border);  /* เส้นแบ่งใต้ header */
+  padding: 0 20px;                         /* ระยะห่างซ้าย-ขวา */
+  height: 56px;                            /* ความสูงคงที่ 56px */
+  display: flex;                           /* จัดวาง logo + badge + clock แนวนอน */
+  align-items: center;                     /* จัดกึ่งกลางแนวตั้ง */
+  justify-content: space-between;          /* กระจาย: logo ซ้าย, clock ขวา */
+  position: sticky;                        /* ติดอยู่บนสุดตลอดเวลา ไม่หายไปตอน scroll */
+  top: 0;
+  z-index: 100;                            /* อยู่เหนือ element อื่นๆ ไม่ถูกบัง */
+}
+
+.logo {
+  font-family: 'Prompt', sans-serif; /* ฟอนต์ Prompt สำหรับโลโก้ หนาและอ่านง่าย */
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent);              /* สีส้มของร้าน */
+  display: flex;
+  align-items: center;
+  gap: 8px;                          /* ระยะห่างระหว่าง emoji กับข้อความ */
+}
+
+.clock {
+  font-size: 0.85rem;
+  color: var(--text-muted); /* สีจาง เพราะเป็นข้อมูลรอง */
+}
+
+
+/* ============================================================
+   4. LAYOUT — โครงสร้างหลัก: ซ้าย (สั่งอาหาร) + ขวา (สรุปออเดอร์)
+   ============================================================ */
+
+.layout {
+  display: flex;                     /* วาง builder-panel และ summary-panel เรียงข้างกัน */
+  flex: 1;                           /* ขยายเต็มพื้นที่ที่เหลือใต้ header */
+  height: calc(100vh - 56px);        /* ความสูงเท่ากับ viewport ลบ header 56px */
+  overflow: hidden;                  /* ป้องกันไม่ให้ layout scroll ออกนอก — ให้แต่ละ panel scroll เอง */
+}
+
+
+/* ============================================================
+   5. BUILDER PANEL — ฝั่งซ้าย พื้นที่สั่งอาหาร
+   ============================================================ */
+
+.builder-panel {
+  flex: 1;           /* ขยายเต็มพื้นที่ที่เหลือหลังหัก summary-panel */
+  overflow-y: auto;  /* scroll ได้ถ้าเนื้อหายาวเกิน */
+  padding: 20px;     /* ระยะห่างรอบด้าน */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;         /* ระยะห่างระหว่าง section ต่างๆ */
+}
+
+
+/* ============================================================
+   6. STEP BAR — แถบแสดงขั้นตอนการสั่ง (เนื้อ → ผัก → น้ำซุป → ฯลฯ)
+   ============================================================ */
+
+.step-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;            /* ไม่มี gap เพราะ step-line จะเชื่อมระหว่าง step เอง */
+  margin-bottom: 4px;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column; /* วงกลม (ด้านบน) + ข้อความ (ด้านล่าง) */
+  align-items: center;
+  position: relative;
+  flex: 1;               /* แต่ละ step กินพื้นที่เท่าๆ กัน */
+}
+
+.step-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;                  /* ทำให้เป็นวงกลม */
+  border: 2px solid var(--border);
+  background: var(--step-inactive);   /* สีเทา — ยังไม่ถึง step นี้ */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all 0.3s;               /* animation เปลี่ยนสีเนียนๆ เมื่อ step เปลี่ยน */
+  z-index: 1;                         /* อยู่เหนือ step-line ที่วิ่งผ่าน */
+}
+
+/* Step ที่กำลังทำอยู่ — เปลี่ยนเป็นสีส้ม */
+.step-item.active .step-circle {
+  border-color: var(--step-active);
+  background: var(--step-active);
+  color: white;
+  box-shadow: 0 0 0 4px rgba(232,93,48,0.2); /* แสง glow สีส้มรอบวงกลม */
+}
+
+/* Step ที่เสร็จแล้ว — เปลี่ยนเป็นสีเขียว */
+.step-item.done .step-circle {
+  border-color: var(--step-done);
+  background: var(--step-done);
+  color: white;
+}
+
+.step-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-align: center;
+  white-space: nowrap; /* ไม่ให้ข้อความขึ้นบรรทัดใหม่ */
+}
+.step-item.active .step-label { color: var(--accent); }
+.step-item.done   .step-label { color: var(--green); }
+
+.step-line {
+  flex: 1;             /* เส้นขยายเต็มพื้นที่ระหว่าง step */
+  height: 2px;
+  background: var(--border); /* สีเทา — ยังไม่ผ่าน */
+  margin-bottom: 22px;       /* ดันลงมาให้อยู่กึ่งกลางวงกลม */
+  transition: background 0.3s;
+}
+.step-line.done { background: var(--step-done); } /* เปลี่ยนเป็นเขียวเมื่อ step เสร็จ */
+
+
+/* ============================================================
+   7. ORDER SECTION — กล่องแต่ละหมวดสินค้า (เนื้อ, ผัก, ฯลฯ)
+   ============================================================ */
+
+.order-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;    /* ไม่ให้เนื้อหาล้นขอบโค้ง */
+}
+
+.section-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border); /* เส้นแบ่งระหว่างหัวกับเนื้อหา */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;        /* วงกลมตัวเลข */
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;            /* ไม่ให้หดตัวเมื่อพื้นที่แคบ */
+}
+
+.section-title {
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.section-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.section-body {
+  padding: 14px 16px; /* ระยะห่างรอบเนื้อหาในกล่อง */
+}
+
+
+/* ============================================================
+   8. ITEM GRID & CARD — ตารางสินค้าและการ์ดแต่ละรายการ
+   ============================================================ */
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  /* auto-fill = ใส่ให้เต็มแถวเท่าที่จะใส่ได้
+     minmax(130px, 1fr) = แต่ละช่องกว้างอย่างน้อย 130px แต่ขยายได้ถ้ามีพื้นที่ */
+  gap: 8px; /* ระยะห่างระหว่างการ์ด */
+}
+
+.item-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 8px;
+  cursor: pointer;             /* เปลี่ยน cursor เป็นมือเมื่อชี้ */
+  text-align: center;
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+  /* transition เฉพาะ property ที่ใช้จริง ไม่ใช้ "all" เพราะจะทำให้ animation กะพริบ */
+  user-select: none;           /* ไม่ให้ user เลือกข้อความบนการ์ดได้ */
+  position: relative;          /* จำเป็นสำหรับ check-badge ที่ใช้ position: absolute */
+}
+
+.item-card:hover {
+  border-color: var(--accent2);
+  background: var(--card-hover);
+  transform: translateY(-2px); /* ยกขึ้นเล็กน้อยเมื่อ hover */
+}
+
+/* การ์ดที่เลือกแล้ว (multi-select เช่น เนื้อ, ผัก) — ขอบสีส้ม */
+.item-card.selected {
+  border-color: var(--accent);
+  background: rgba(232,93,48,0.12);
+}
+
+/* การ์ดที่เลือกแล้ว (single-select เช่น น้ำซุป) — ขอบสีทอง */
+.item-card.selected-single {
+  border-color: var(--gold);
+  background: rgba(240,168,48,0.12);
+}
+
+/* การ์ดที่เพิ่งถูกเลือก — เล่น animation เด้ง */
+.item-card.just-selected {
+  animation: cardPop 0.45s ease;
+}
+
+/* ============================================================
+   9. CHECK BADGE — วงกลมเครื่องหมายถูกมุมขวาบนของการ์ดที่เลือก
+   ============================================================ */
+
+.check-badge {
+  position: absolute;   /* ลอยอยู่มุมขวาบนของการ์ด */
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: none;         /* ซ่อนไว้ก่อน จะแสดงเมื่อการ์ดถูกเลือก */
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: white;
+}
+
+/* เล่น animation bounce เฉพาะตอนที่เพิ่งเลือก */
+.item-card.just-selected .check-badge {
+  animation: bounce 0.35s ease;
+}
+
+/* แสดง check-badge เมื่อการ์ดถูกเลือก (multi-select) */
+.item-card.selected .check-badge,
+.qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* แสดง check-badge เมื่อการ์ดถูกเลือก (single-select) */
+.item-card.selected-single .check-badge {
+  display: flex;
+  background: var(--gold); /* สีทองสำหรับ single-select */
+}
+
+
+/* ============================================================
+   10. QTY ROW — แถวปุ่ม −/+ และตัวเลขจำนวน
+   ============================================================ */
+
+.qty-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;                /* ปุ่มกลม */
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qty-btn:hover:not(:disabled) {
+  background: var(--accent); /* เติมสีส้มเมื่อ hover */
+  color: #000;
+}
+
+.qty-btn:disabled {
+  opacity: 0.25;              /* จางลงเมื่อ disabled (เช่น ปุ่ม − เมื่อจำนวน = 0) */
+  cursor: default;
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+}
+
+.qty-btn:active {
+  transform: scale(0.85); /* หดเล็กลงเมื่อกด แสดงให้เห็นว่า "กดแล้ว" */
+}
+
+.qty-num {
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 16px;    /* ความกว้างขั้นต่ำ ไม่ให้ตัวเลขเลื่อนเมื่อตัวเลขเปลี่ยน */
+  text-align: center;
+  transition: all 0.15s;
+}
+
+
+/* ============================================================
+   11. ITEM INFO — ข้อความชื่อ, ราคา, และ emoji/รูปภาพในการ์ด
+   ============================================================ */
+
+.item-emoji {
+  font-size: 1.8rem;
+  display: block;      /* แสดงเป็น block เพื่อขึ้นบรรทัดใหม่ */
+  margin-bottom: 5px;
+}
+
+.item-name {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 3px;
+  line-height: 1.3;    /* ระยะห่างระหว่างบรรทัด สำหรับชื่อที่ยาว */
+}
+
+.item-price {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* รูปภาพจริง (แทน emoji) ในการ์ดสินค้า */
+.item-img {
+  width: 100%;
+  aspect-ratio: 1;     /* บังคับให้เป็นสี่เหลี่ยมจัตุรัส ไม่ว่ารูปจะเป็นรูปทรงอะไร */
+  object-fit: cover;   /* ครอบตัดรูปให้เต็มพื้นที่โดยไม่ยืดเสียรูป */
+  border-radius: 8px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* ข้อความน้ำหนัก + ราคา ใต้รูปภาพ */
+.item-meta {
+  display: flex;
+  justify-content: space-between; /* น้ำหนักซ้าย ราคาขวา */
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.item-meta .weight    { color: var(--text-dim); }
+.item-meta .price-tag { color: var(--gold); font-weight: 700; }
+
+
+/* ============================================================
+   12. OPTIONAL TAG — ป้าย "Optional" สำหรับของหวาน
+   ============================================================ */
+
+.optional-tag {
+  font-size: 0.7rem;
+  color: var(--purple);
+  background: rgba(188,140,255,0.12);
+  border: 1px solid rgba(188,140,255,0.3);
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-left: auto; /* ดันไปอยู่ขวาสุดของ section-header */
+}
+
+
+/* ============================================================
+   13. CATEGORY FILTER TABS — แท็บกรองหมวดหมู่ (ทั้งหมด, เนื้อสัตว์, ผัก ฯลฯ)
+   ============================================================ */
+
+.cat-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;    /* ขึ้นบรรทัดใหม่ได้ถ้าแท็บเยอะเกิน */
+  margin-bottom: 10px;
+}
+
+.cat-tab {
+  padding: 4px 12px;
+  border-radius: 20px;        /* ขอบโค้งมน ทำให้ดูเหมือน pill/chip */
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.cat-tab.active {
+  background: var(--accent);   /* พื้นหลังสีส้มเมื่อเลือกอยู่ */
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+
+/* ============================================================
+   14. NAVIGATION BUTTONS — ปุ่มย้อนกลับและถัดไประหว่าง step
+   ============================================================ */
+
+.step-nav {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end; /* ชิดขวา */
+  margin-top: 4px;
+}
+
+.btn-next {
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-next:hover            { filter: brightness(1.12); transform: translateY(-1px); }
+.btn-next:disabled         { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.btn-back {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-back:hover { border-color: var(--text-muted); color: var(--text); }
+
+/* ปุ่ม "เพิ่มอีก 1 ชาม" และ "ชำระเงิน" — ขอบประ สีส้ม */
+.btn-add-bowl {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 2px dashed var(--accent); /* ขอบประ ดูเป็น "option เพิ่มเติม" */
+  background: rgba(232,93,48,0.07);
+  color: var(--accent);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-add-bowl:hover { background: rgba(232,93,48,0.15); transform: translateY(-1px); }
+
+
+/* ============================================================
+   15. SUMMARY PANEL — ฝั่งขวา แสดงรายการออเดอร์ทั้งหมด
+   ============================================================ */
+
+.summary-panel {
+  width: 35%;          /* กินพื้นที่ 35% ของ layout */
+  min-width: 280px;    /* กว้างน้อยสุด 280px ไม่ให้แคบเกินอ่านไม่ได้ */
+  max-width: 420px;    /* กว้างสุด 420px ไม่ให้กว้างเกินไปบนจอใหญ่ */
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border); /* เส้นแบ่งซ้ายของ panel */
+  height: 100%;
+}
+
+.summary-header {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;     /* บนมือถือกดเพื่อ expand/collapse ได้ */
+  user-select: none;
+}
+
+.summary-header h2 {
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.95rem;
+  color: var(--accent);
+}
+
+/* ปุ่ม "ล้างทั้งหมด" — เล็กๆ สีแดง */
+.clear-all-btn {
+  font-size: 0.72rem;
+  color: var(--red);
+  background: none;
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  padding: 3px 7px;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+}
+
+/* ลูกศร ˅ ที่หมุนได้บนมือถือ บอกว่า expand/collapse */
+.summary-toggle-icon {
+  display: inline-block;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--accent);
+  margin-left: 4px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: rotate(0deg);
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+
+/* ============================================================
+   16. SUMMARY ORDERS — รายการชามต่างๆ ใน summary panel
+   ============================================================ */
+
+.summary-orders {
+  flex: 1;
+  overflow-y: auto;  /* scroll ได้ถ้าชามเยอะ */
+  padding: 10px 12px;
+}
+
+/* ข้อความ "ยังไม่มีออเดอร์" ตรงกลาง */
+.empty-summary {
+  text-align: center;
+  padding: 40px 10px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.empty-summary .big {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* การ์ดแต่ละชาม */
+.bowl-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+/* animation เลื่อนลงมาเมื่อเพิ่มชามใหม่ */
+.bowl-card.new { animation: slideIn 0.2s ease; }
+
+.bowl-header {
+  padding: 4px 10px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.bowl-title  { font-size: 0.75rem; font-weight: 600; color: var(--gold); }
+.bowl-price  { font-size: 0.75rem; font-weight: 700; color: var(--accent2); }
+
+.bowl-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  transition: color 0.2s;
+}
+.bowl-remove:hover { color: var(--red); }
+
+.bowl-items { padding: 4px 10px; }
+
+.bowl-item-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  padding: 1px 0;
+  color: var(--text-muted);
+}
+.bowl-item-row span:first-child { color: var(--text); }
+
+
+/* ============================================================
+   17. SUMMARY FOOTER — ส่วนล่างของ summary: ยอดรวม + ปุ่มชำระเงิน
+   ============================================================ */
+
+.summary-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  flex-shrink: 0; /* ไม่ให้ footer หดตัวเมื่อเนื้อหาด้านบนเยอะ */
+}
+
+.total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.total-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* ป้องกัน flex item ล้นออกนอกกล่อง */
+}
+
+.total-label  { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.total-sub    { font-size: 0.68rem; color: var(--text-dim); }
+
+.total-amount {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap; /* ไม่ให้ตัวเลขตัดบรรทัด */
+}
+
+.pay-btns { display: none; } /* ซ่อนไว้ จะแสดงเมื่อมีออเดอร์ */
+
+.pay-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.pay-btn .icon { font-size: 0.85rem; }
+.pay-cash { background: var(--green); color: white; }
+.pay-cash:hover { filter: brightness(1.1); }
+.pay-qr   { background: var(--blue); color: white; }
+.pay-qr:hover   { filter: brightness(1.1); }
+.pay-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+
+/* ============================================================
+   18. MODALS — กล่อง popup ชำระเงิน, ยืนยัน, สำเร็จ
+   ============================================================ */
+
+.overlay {
+  display: none;          /* ซ่อนไว้ก่อน */
+  position: fixed;
+  inset: 0;               /* inset:0 = top:0, right:0, bottom:0, left:0 ครอบทั้งหน้า */
+  background: rgba(0,0,0,0.75); /* พื้นหลังมืด semi-transparent */
+  z-index: 200;           /* อยู่เหนือทุก element */
+  align-items: center;
+  justify-content: center;
+}
+.overlay.show { display: flex; } /* แสดงเมื่อ JavaScript เพิ่ม class "show" */
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px;
+  width: 90%;
+  max-width: 380px;
+  animation: popIn 0.22s ease; /* เด้งขึ้นมาเมื่อเปิด */
+}
+
+.modal h3 {
+  font-family: 'Prompt', sans-serif;
+  color: var(--accent);
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+/* กล่องรายการสินค้าใน modal ชำระเงิน */
+.modal-orders {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 180px;
+  overflow-y: auto;   /* scroll ได้ถ้ารายการเยอะ */
+  margin-bottom: 12px;
+}
+
+.modal-bowl       { margin-bottom: 8px; }
+.modal-bowl-title { font-size: 0.8rem; color: var(--gold); font-weight: 600; }
+.modal-item-row   { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); padding: 1px 8px; }
+.modal-item-row span:first-child { color: var(--text); }
+
+/* แถวยอดรวม */
+.modal-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 10px 0;
+  font-family: 'Prompt', sans-serif;
+}
+
+/* ===== ชำระเงินสด ===== */
+.cash-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.cash-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-family: 'Sarabun', sans-serif;
+  text-align: right; /* ตัวเลขชิดขวา อ่านง่ายกว่า */
+}
+.cash-input:focus { outline: none; border-color: var(--accent); }
+
+/* แถวเงินทอน */
+.change-row {
+  display: flex;
+  justify-content: space-between;
+  background: var(--card);
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin-top: 8px;
+  font-size: 0.88rem;
+}
+.change-val { font-weight: 700; color: var(--green); }
+
+/* ===== ชำระ QR / โอนเงิน ===== */
+.qr-box {
+  width: 150px;
+  height: 150px;
+  background: white;      /* พื้นขาวสำหรับ QR Code */
+  border-radius: 8px;
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+}
+
+.qr-amount { text-align: center; font-family: 'Prompt', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--gold); }
+.qr-sub    { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+/* ===== ปุ่มใน modal ===== */
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.btn-confirm {
+  flex: 1; /* กินพื้นที่เท่ากัน */
+  padding: 11px;
+  border-radius: 10px;
+  border: none;
+  background: var(--green);
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-confirm:hover    { filter: brightness(1.1); }
+.btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-cancel {
+  flex: 1;
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-cancel:hover { border-color: var(--red); color: var(--red); }
+
+
+/* ============================================================
+   19. SUCCESS MODAL — popup เมื่อชำระเงินสำเร็จ
+   ============================================================ */
+
+.success-icon {
+  font-size: 3rem;
+  display: block;
+  text-align: center;
+  margin-bottom: 8px;
+  animation: bounce 0.4s ease; /* เด้งขึ้นมาเมื่อปรากฏ */
+}
+.success-modal h3 { color: var(--green); }
+
+/* ใบเสร็จใน success modal */
+.receipt {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+  font-size: 0.78rem;
+  border: 1px dashed var(--border); /* ขอบประ ให้ดูเหมือนใบเสร็จจริง */
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.receipt-row               { display: flex; justify-content: space-between; padding: 2px 0; color: var(--text-muted); }
+.receipt-row span:first-child { color: var(--text); }
+.receipt-divider           { border: none; border-top: 1px dashed var(--border); margin: 5px 0; }
+.receipt-total             { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+
+
+/* ============================================================
+   20. PAYMENT CHOICE MODAL — modal เลือกวิธีชำระเงิน
+   ============================================================ */
+
+.pay-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* สองปุ่มเรียงข้างกัน */
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pay-choice-btn {
+  padding: 22px 10px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column; /* icon บน, ชื่อล่าง */
+  align-items: center;
+  gap: 8px;
+}
+
+.pay-choice-btn .pci { font-size: 2.4rem; }         /* icon emoji ใหญ่ */
+.pay-choice-btn .pct { font-size: 1rem; font-weight: 700; }   /* ชื่อหลัก */
+.pay-choice-btn .pcs { font-size: 0.75rem; color: var(--text-muted); } /* คำอธิบายเล็ก */
+
+/* hover สีเขียวสำหรับเงินสด */
+.pay-choice-btn.cash:hover { border-color: var(--green); background: rgba(63,185,80,0.1); }
+.pay-choice-btn.cash:hover .pct { color: var(--green); }
+
+/* hover สีฟ้าสำหรับโอนเงิน */
+.pay-choice-btn.qr:hover { border-color: var(--blue); background: rgba(88,166,255,0.1); }
+.pay-choice-btn.qr:hover .pct { color: var(--blue); }
+
+
+/* ============================================================
+   21. CURRENT BOWL PREVIEW — กล่องแสดงสิ่งที่เลือกไว้ในชามปัจจุบัน
+   ============================================================ */
+
+.current-bowl-preview {
+  background: var(--surface);
+  border: 1px solid var(--accent); /* ขอบส้ม เน้นว่านี่คือชามที่กำลังสร้าง */
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.preview-title {
+  font-size: 0.8rem;
+  color: var(--accent2);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.preview-items {
+  display: flex;
+  flex-wrap: wrap; /* ขึ้นบรรทัดใหม่ถ้า chip เยอะ */
+  gap: 6px;
+}
+
+/* chip แต่ละรายการใน preview */
+.preview-chip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px; /* ขอบโค้งมน */
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.preview-chip.active {
+  border-color: var(--accent2);
+  color: var(--accent2); /* สีส้มเมื่อมีรายการอยู่ */
+}
+
+
+/* ============================================================
+   22. WELCOME SCREEN — หน้าต้อนรับ "KOIII SHABU"
+   ============================================================ */
+
+.welcome-screen {
+  display: none;            /* ซ่อนไว้ก่อน */
+  position: fixed;
+  inset: 0;
+  z-index: 300;             /* อยู่เหนือทุกอย่าง */
+  background: #0d1117;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+}
+.welcome-screen.show { display: flex; }
+
+/* แสงเรืองสีส้มตรงกลางหน้า ทำให้มีมิติ */
+.welcome-bg-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,93,48,0.15) 0%, transparent 70%);
+  /* radial-gradient = สีค่อยๆ จางออกจากตรงกลาง */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* จัดกึ่งกลางแน่นอน */
+  pointer-events: none; /* ไม่รับ click ไม่ขวาง interaction */
+}
+
+/* หม้อที่ลอยขึ้นลงตลอดเวลา */
+.welcome-pot {
+  font-size: 5rem;
+  display: block;
+  animation: floatPot 3s ease-in-out infinite; /* วนซ้ำไม่มีสิ้นสุด */
+  filter: drop-shadow(0 0 30px rgba(232,93,48,0.5)); /* เงาสีส้มใต้หม้อ */
+  margin-bottom: 28px;
+}
+
+.welcome-brand {
+  font-family: 'Prompt', sans-serif;
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 3px;  /* เว้นระยะตัวอักษร ดูหรูขึ้น */
+  line-height: 1;
+  margin-bottom: 6px;
+  text-shadow: 0 0 40px rgba(232,93,48,0.4); /* เรืองแสงสีส้มรอบตัวอักษร */
+}
+.welcome-brand span { color: var(--gold); } /* คำว่า SHABU เป็นสีทอง */
+
+.welcome-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  letter-spacing: 4px;
+  text-transform: uppercase; /* บังคับตัวพิมพ์ใหญ่ */
+}
+
+.welcome-tagline {
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 50px;
+  opacity: 0.75;
+  line-height: 1.7; /* ระยะห่างบรรทัดสบายตา */
+}
+
+/* ปุ่มเริ่มสั่งอาหาร — กระพริบเบาๆ เรียกความสนใจ */
+.welcome-btn {
+  padding: 16px 52px;
+  border-radius: 50px;  /* โค้งมนสุดๆ ดูทันสมัย */
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #c84020);
+  /* linear-gradient = ไล่สีจากส้มสว่างไปส้มเข้ม */
+  color: white;
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  box-shadow: 0 8px 32px rgba(232,93,48,0.4);
+  transition: all 0.3s;
+  animation: pulse-btn 2.5s ease-in-out infinite; /* กระพริบเบาๆ */
+}
+.welcome-btn:hover {
+  transform: translateY(-3px) scale(1.03); /* ยกขึ้นและขยายเล็กน้อย */
+  box-shadow: 0 12px 40px rgba(232,93,48,0.6);
+  animation: none; /* หยุดกระพริบเมื่อ hover */
+}
+
+.welcome-footer {
+  position: absolute;
+  bottom: 24px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+
+/* ============================================================
+   23. ORDER TYPE & TABLE SCREENS — หน้าเลือก "ทานที่ร้าน/กลับบ้าน" และเลือกโต๊ะ
+   ============================================================ */
+
+.order-type-screen,
+.table-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 250;       /* ต่ำกว่า welcome (300) แต่สูงกว่า main (100) */
+  background: var(--bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding-top: 60px;
+}
+
+.order-type-screen .back-btn,
+.table-screen .back-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
+.order-type-screen.show,
+.table-screen.show { display: flex; }
+
+/* การ์ดเลือกประเภทออเดอร์ (ทานที่ร้าน / กลับบ้าน) */
+.ot-card {
+  width: min(340px, 85vw); /* กว้างสุด 340px หรือ 85% ของจอ แล้วแต่ว่าน้อยกว่า */
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.ot-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(232,93,48,0.25); }
+
+.ot-icon  { font-size: 3.5rem; margin-bottom: 12px; }
+.ot-label { font-family: 'Prompt', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--text); }
+.ot-sub   { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+/* หัวหน้าหน้าเลือกโต๊ะ */
+.table-title { font-family: 'Prompt', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+
+/* ตารางโต๊ะ */
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 โต๊ะต่อแถว */
+  gap: 16px;
+  padding: 0 24px;
+  width: min(480px, 90vw);
+}
+
+.table-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.table-card:hover { border-color: var(--accent); box-shadow: 0 8px 30px rgba(232,93,48,0.25); }
+
+.table-icon { font-size: 2.2rem; }
+.table-num  { font-family: 'Prompt', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); }
+
+/* ปุ่มย้อนกลับ */
+.back-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+.back-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.back-btn-center {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: 'Sarabun', sans-serif;
+}
+.back-btn-center:hover { color: var(--text); border-color: var(--accent); }
+
+.table-screen .back-btn { display: none; }
+
+
+/* ============================================================
+   24. HEADER BADGES — badge แสดงโต๊ะและปุ่มเปลี่ยนประเภทใน header
+   ============================================================ */
+
+.table-badge {
+  font-size: 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 10px;
+  color: var(--text-muted);
+  margin-left: auto; /* ดันไปชิดขวา */
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+}
+.table-badge:hover { border-color: var(--accent); color: var(--accent); }
+
+
+/* ============================================================
+   25. SCROLLBAR — ปรับแต่งแถบ scroll ให้เข้ากับธีมมืด
+   ============================================================ */
+
+::-webkit-scrollbar       { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }           /* พื้นหลัง scrollbar โปร่งใส */
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; } /* แถบลากสีเทา */
+
+
+/* ============================================================
+   26. ANIMATIONS — keyframe สำหรับ animation ต่างๆ
+   ============================================================ */
+
+/* หม้อลอยขึ้นลงในหน้าต้อนรับ */
+@keyframes floatPot {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+
+/* ปุ่มเริ่มสั่งอาหารกระพริบเบาๆ */
+@keyframes pulse-btn {
+  0%, 100% { box-shadow: 0 8px 32px rgba(232,93,48,0.4); }
+  50%       { box-shadow: 0 8px 48px rgba(232,93,48,0.7); }
+}
+
+/* การ์ดสินค้าเด้งเมื่อถูกเลือก */
+@keyframes cardPop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.88); } /* หดเล็กก่อน */
+  70%  { transform: scale(1.05); } /* แล้วค่อยขยายเกินนิดหน่อย */
+  100% { transform: scale(1); }
+}
+
+/* check-badge, success icon เด้งขึ้นมา */
+@keyframes bounce {
+  0%   { transform: scale(0.5); opacity: 0; }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ชามใหม่เลื่อนลงมาใน summary */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* modal popup ขึ้นมา */
+@keyframes popIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ใช้สำหรับ element ที่ fade เข้ามา */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+/* ============================================================
+   27. RESPONSIVE — ปรับ layout สำหรับมือถือ (หน้าจอ ≤ 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+  /* เปลี่ยนจากเรียงข้างเป็นเรียงบน-ล่าง */
+  .layout {
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .builder-panel {
+    flex: 1;
+    min-height: 0;   /* จำเป็น! ไม่ใส่จะทำให้ panel ขยายเกินหน้าจอ */
+    overflow-y: auto;
+  }
+
+  /* Summary panel อยู่ด้านล่าง กินพื้นที่ประมาณ 1 ใน 3 */
+  .summary-panel {
+    width: 100%;
+    min-width: unset;
+    max-width: unset;
+    height: auto !important;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ซ่อนรายการและ footer เมื่อ collapse */
+  .summary-panel.collapsed .summary-orders,
+  .summary-panel.collapsed .summary-footer { display: none !important; }
+  .summary-panel.collapsed .summary-toggle-icon { transform: rotate(-180deg); }
+
+  /* แสดงรายการเมื่อ expand สูงสุด 38dvh */
+  .summary-panel.expanded { max-height: 38dvh !important; }
+  .summary-panel.expanded .summary-toggle-icon { transform: rotate(0deg); }
+  .summary-panel.expanded .summary-orders { flex: 1; overflow-y: auto; min-height: 0; }
+
+  .summary-footer  { flex-shrink: 0; }
+  .summary-header  { cursor: pointer; }
+
+  /* ตารางสินค้า 3 คอลัมน์บนมือถือ (แทน auto-fill) */
+  .item-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+
+/* ============================================================
+   28. DESKTOP OVERRIDE — บังคับให้ summary panel แสดงเต็มๆ บน desktop
+   ============================================================ */
+
+@media (min-width: 641px) {
+  /* บน desktop ไม่มี collapse — แสดงทั้งหมดตลอดเวลา */
+  .summary-panel.visible {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    max-height: none !important;
+  }
+
+  .summary-panel .summary-orders {
+    display: block !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
+  }
+
+  .summary-panel .summary-footer {
+    display: block !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* ซ่อนลูกศร expand/collapse บน desktop */
+  .summary-toggle-icon { display: none; }
+
+  /* header ของ summary ไม่กดได้บน desktop */
+  .summary-header { cursor: default; pointer-events: none; }
+  .clear-all-btn  { pointer-events: all; } /* ยกเว้นปุ่มล้างทั้งหมด */
+}
