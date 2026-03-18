@@ -229,8 +229,8 @@ const IMG = {
   'โบโลน่าหมูและไก่': 'images/bologna2.png',
   'ไส้กรอกชีส': 'images/cheese-sausage.png',
   'ไส้กรอกหมู': 'images/pork-sausage.png',
-  'ช็อคโกแลตชีสเค้ก': 'images/chocolate-cheesecake.png',
   'ชีสเค้ก': 'images/cheesecake.png',
+  'ช็อคโกแลตชีสเค้ก': 'images/chocolate-cheesecake.png',
 };
 
 const MENU = {
@@ -284,8 +284,8 @@ const MENU = {
     { id:'sc3', name:'น้ำจิ้มสุกี้', price:0, emoji:'🌿', desc:'รสจัด เผ็ดหวาน' },
   ],
   desserts: [
-    { id:'d1', name:'ชีสเค้ก', price:79,img:'ชีสเค้ก',  desc:'ชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
-    { id:'d2', name:'ช็อคโกแลตชีสเค้ก', price:79, img:'ช็อคโกแลตชีสเค้ก', desc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
+  { id:'d1', name:'ชีสเค้ก', price:79,img:'ชีสเค้ก',  desc:'ชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
+  { id:'d2', name:'ช็อคโกแลตชีสเค้ก', price:79, img:'ช็อคโกแลตชีสเค้ก', desc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
   ]
 };
 
@@ -495,9 +495,7 @@ function renderMultiSelect(field, items, selected, extraCard, optionalTag) {
             }
             <div class="item-name" onclick="addItem('${field}','${item.id}')" style="cursor:pointer">${item.name}</div>
             <div class="item-meta">
-    
               <span class="weight">${item.weight||item.desc||''}</span>
-              
               <span class="price-tag">฿${item.price}</span>
             </div>
             <div class="qty-row">
@@ -853,12 +851,51 @@ function calcChange() {
   }
 }
 
+//เพิ่มการบันทึกยอดขาย
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxy4fm-cm2TSRCqke3ovxB4-H48B_WtHnuzieB5_LKYVqoDKOfBL9UNDHlr972D8Pom/exec';
+
+function saveToSheets(payInfo) {
+  // สรุปรายการสินค้าทุกชามเป็นข้อความเดียว
+  const itemsSummary = payInfo.bowls.map((bowl, i) => {
+    const lines = [
+      ...groupItems(bowl.meats,'🥩'),
+      ...groupItems(bowl.vegs,'🥬'),
+      ...groupItems(bowl.soups),
+      ...groupItems(bowl.sauces),
+      ...groupItems(bowl.desserts)
+    ].map(g => g.nameStr + ' ' + g.priceStr).join(', ');
+    return 'ชามที่'+(i+1)+': '+lines;
+  }).join(' | ');
+
+  const now = new Date();
+  const date = now.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'numeric'});
+
+  const payload = {
+    date:      date,
+    time:      payInfo.time,
+    table:     orderType === 'dine' ? 'โต๊ะ ' + tableNum : 'กลับบ้าน',
+    orderType: orderType === 'dine' ? 'ทานที่ร้าน' : 'กลับบ้าน',
+    items:     itemsSummary,
+    total:     payInfo.total,
+    payMethod: payInfo.type === 'cash' ? 'เงินสด' : 'โอน/QR'
+  };
+
+  fetch(SHEETS_URL, {
+    method: 'POST',
+    mode: 'no-cors',  // จำเป็นสำหรับ Google Apps Script
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(err => console.log('Sheets error:', err));
+  // ใช้ catch แบบเงียบๆ ไม่ให้ error รบกวน UX
+}
+
 function confirmPay(type) {
   const total = calcGrandTotal();
   const recv = type==='cash' ? parseFloat(document.getElementById('cashInput').value) : total;
   lastPayInfo = { type, bowls: [...completedBowls], total, recv, change: recv-total,
     time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) };
   closeOverlay(type==='cash'?'cashOverlay':'qrOverlay');
+  saveToSheets(lastPayInfo);  // บันทึกไป Google Sheets
   showSuccess();
 }
 
