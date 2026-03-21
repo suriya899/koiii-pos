@@ -600,7 +600,12 @@ async function saveToSheets() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
 
       // แปลง items (array ของเมนูทั้งหมด) เป็นข้อความ JSON แล้วส่งไป
-      body: JSON.stringify({ action: 'saveMenu', items }),
+      body: JSON.stringify({ action: 'saveMenu', items: items.map(item => ({
+    ...item,
+    img:          item.imgKey,      // imgKey → img
+    weight_desc:  item.weightDesc,  // weightDesc → weight_desc
+    cat:          item.subCat,      // subCat → cat
+  })) }),
     });
 
     // บันทึกลง localStorage ด้วย เผื่อโหลดหน้าใหม่ตอน offline จะได้มีข้อมูลแสดง
