@@ -397,7 +397,17 @@ async function init() {
     const res  = await fetch(SCRIPT_URL + '?action=getMenu');
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
-      items = data.map(r => ({ ...r, price: parseFloat(r.price)||0, active: r.active==='TRUE'||r.active===true }));
+      // items = data.map(r => ({ ...r, price: parseFloat(r.price)||0, active: r.active==='TRUE'||r.active===true }));
+
+      items = data.map(r => ({ 
+  ...r, 
+  price:      parseFloat(r.price) || 0, 
+  active:     r.active === 'TRUE' || r.active === true,
+  // แปลงชื่อ field จาก Sheets กลับมาเป็นชื่อที่ Editor ใช้
+  imgKey:     r.img        || r.imgKey     || '',
+  weightDesc: r.weight_desc|| r.weightDesc || '',
+  subCat:     r.cat        || r.subCat     || '',
+}));
       localStorage.setItem('koiii_menu_v2', JSON.stringify(items));
       setStatus('โหลดจาก Sheets สำเร็จ ✓');
     } else {
