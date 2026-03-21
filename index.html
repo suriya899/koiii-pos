@@ -258,7 +258,24 @@ const IMG = {
   'ช็อคโกแลตชีสเค้ก': 'images/chocolate-cheesecake.png',
 };
 
-const MENU = {
+
+ 
+// ============================================================
+// STEP 3 — แก้ตัวแปร MENU ใน index.html
+//
+// หาบรรทัดนี้ใน index.html:
+//   const MENU = { meats: [...], vegs: [...], ... };
+//
+// เปลี่ยนเป็นแบบนี้:
+//   ① เปลี่ยนชื่อจาก MENU เป็น DEFAULT_MENU_FALLBACK
+//   ② เพิ่ม let MENU = null; ไว้ด้านล่าง
+// ============================================================
+
+// เมนูสำรอง (ใช้เมื่อ internet ขาดหรือ Sheets ยังไม่ได้ setup)
+// ทำให้ POS ยังทำงานได้แม้ไม่มี internet
+// ─── วิธีทำ: copy ข้อมูลจาก MENU เดิมใน index.html มาวางไว้ตรงนี้แทน ───
+
+const DEFAULT_MENU_FALLBACK = {
   meats: [
     { id:'m1', name:'เนื้อวัว',       price:99, img:'เนื้อวัว',       weight:'~100g/2ไม้', cat:'เนื้อสัตว์' },
     { id:'m2', name:'เนื้อหมูสามชั้น', price:79, img:'เนื้อหมูสามชั้น', weight:'~120g/2ไม้', cat:'เนื้อสัตว์' },
@@ -313,6 +330,10 @@ const MENU = {
   { id:'d2', name:'ช็อคโกแลตชีสเค้ก', price:79, img:'ช็อคโกแลตชีสเค้ก', desc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
   ]
 };
+
+// ประกาศ MENU เป็น null ก่อน
+// ยังไม่มีค่า รอให้ loadMenuFromSheets() ไปดึงจาก Sheets มาใส่
+let MENU = null;
 
 const STEPS = [
   { id:'meat', label:'เนื้อสัตว์', icon:'🥩' },
@@ -966,6 +987,74 @@ function renderReceiptQR(amount) {
 
 //เพิ่มการบันทึกยอดขาย
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxy4fm-cm2TSRCqke3ovxB4-H48B_WtHnuzieB5_LKYVqoDKOfBL9UNDHlr972D8Pom/exec';
+// ============================================================
+// เพิ่มฟังก์ชัน loadMenuFromSheets() ใน index.html
+//
+// วางไว้ใต้บรรทัด const SHEETS_URL = '...' ใน index.html
+// ============================================================
+
+async function loadMenuFromSheets() {
+  try {
+    // ส่ง request ไปขอข้อมูลเมนูจาก Google Sheets
+    // ?action=getMenu บอก Apps Script ว่าเราต้องการเมนู ไม่ใช่ออเดอร์
+    const res  = await fetch(`${SHEETS_URL}?action=getMenu`);
+    const data = await res.json(); // แปลงข้อมูลที่ได้กลับมาจาก JSON string → JavaScript Array
+ 
+    if (data && data.length > 0) {
+      // มีข้อมูลเมนูใน Sheets → จัดกลุ่มให้ตรงกับ format ที่ POS ต้องการ
+ 
+      // เตรียม "ตะกร้า" 5 ใบ แยกตามหมวดหมู่
+      // ตอนนี้ข้อมูลจาก Sheets เป็นแถวเรียงกันยาวๆ ยังไม่แยกหมวด
+      const grouped = {
+        meats:    [], // เนื้อสัตว์
+        vegs:     [], // ผัก/เครื่อง
+        soups:    [], // น้ำซุป
+        sauces:   [], // น้ำจิ้ม
+        desserts: [], // ของหวาน
+      };
+ 
+      data.forEach(item => {
+        // เช็คว่าเมนูนี้เปิดใช้งานอยู่ไหม (ดูจากฟิลด์ "active")
+        // ต้องเช็ค 2 แบบ เพราะ Google Sheets บางครั้งส่งค่า Boolean มา บางครั้งส่งมาเป็น String
+        //   - true   → มาจาก JavaScript Boolean ปกติ
+        //   - 'TRUE' → มาจาก Sheets ที่แปลงค่าเป็นตัวหนังสือ
+        const isActive = item.active === true || item.active === 'TRUE';
+ 
+        // เมนูที่ปิดอยู่ (active = false) จะถูกกรองออก ไม่แสดงใน POS
+        if (!isActive) return;
+ 
+        // แปลงราคาให้เป็นตัวเลขเสมอ เผื่อ Sheets ส่งมาเป็น string เช่น "99"
+        // parseFloat('99') → 99, ถ้าแปลงไม่ได้จะได้ 0 แทน (|| 0)
+        item.price = parseFloat(item.price) || 0;
+ 
+        // ดูว่าเมนูนี้อยู่หมวดไหน (meats / vegs / soups / sauces / desserts)
+        const t = item.type;
+ 
+        // ถ้าหมวดนั้นมีตะกร้ารองรับ → หย่อนใส่ลงไป
+        // if (grouped[t]) ป้องกันกรณีที่ข้อมูลใน Sheets มี type แปลกๆ ที่ไม่รู้จัก
+        if (grouped[t]) {
+          grouped[t].push(item);
+        }
+      });
+ 
+      // ใส่เมนูที่จัดกลุ่มแล้วเข้าไปใน MENU (ตัวแปร global ที่ POS ใช้งาน)
+      MENU = grouped;
+      console.log('✅ โหลดเมนูจาก Sheets สำเร็จ!');
+ 
+    } else {
+      // Sheets ส่ง array ว่างกลับมา = ยังไม่มีเมนูใน Sheets
+      // ให้ใช้เมนูสำรองที่ hardcode ไว้แทน (DEFAULT_MENU_FALLBACK)
+      console.warn('⚠️ ไม่เจอข้อมูลใน Sheets ใช้เมนูสำรองแทน');
+      MENU = DEFAULT_MENU_FALLBACK;
+    }
+ 
+  } catch (err) {
+    // เชื่อมต่อไม่ได้เลย เช่น internet ขาด หรือ Apps Script URL ผิด
+    // ก็ยังใช้งาน POS ต่อได้โดยใช้เมนูสำรอง
+    console.error('❌ เชื่อมต่อ Sheets ไม่ได้ (Offline):', err);
+    MENU = DEFAULT_MENU_FALLBACK;
+  }
+}
 
 function saveToSheets(payInfo) {
   // สรุปรายการสินค้าทุกชามเป็นข้อความเดียว
@@ -1199,7 +1288,22 @@ function selectTable(num, cardEl) {
   }, 350);
 }
 
-function enterPOS() {
+// ============================================================
+// แก้ฟังก์ชัน enterPOS() ใน index.html
+//
+// หาฟังก์ชัน enterPOS() เดิม (ประมาณบรรทัดท้ายๆ ของ script)
+// เพิ่ม async และ await loadMenuFromSheets() เข้าไปข้างหน้า
+// โค้ดที่เหลือในฟังก์ชันนั้นไม่ต้องเปลี่ยนเลย
+// ============================================================
+
+async function enterPOS() {
+    // โหลดเมนูจาก Sheets ก่อนเปิดหน้า POS
+  // ถ้า MENU ยังเป็น null (ยังไม่เคยโหลด) → โหลดใหม่
+  // ถ้าโหลดแล้ว → ข้ามไปเลย ไม่โหลดซ้ำโดยไม่จำเป็น
+  if (!MENU) {
+    await loadMenuFromSheets();
+  }
+
   document.getElementById('mainLayout').style.display = 'flex';
   startNewBowl();
 
