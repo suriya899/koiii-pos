@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koiii POS — จัดการเมนู</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --surface2:#1c2330;
+  --card:    #21262d;
+  --border:  #30363d;
+  --accent:  #e85d30;
+  --gold:    #f0a830;
+  --green:   #3fb950;
+  --blue:    #58a6ff;
+  --red:     #f85149;
+  --text:    #e6edf3;
+  --muted:   #7d8590;
+  --dim:     #484f58;
+  --purple:  #bc8cff;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Sarabun',sans-serif;
+  background:var(--bg); color:var(--text);
+  min-height:100dvh; display:flex; flex-direction:column;
+}
+
+/* HEADER */
+header {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 20px; height:56px; display:flex; align-items:center;
+  justify-content:space-between; position:sticky; top:0; z-index:100; flex-shrink:0;
+}
+.header-logo { font-family:'Prompt',sans-serif; font-size:1.1rem; font-weight:800; color:var(--accent); }
+.header-left  { display:flex; align-items:center; gap:12px; }
+.header-right { display:flex; align-items:center; gap:10px; }
+.header-badge {
+  font-size:0.72rem; background:rgba(232,93,48,0.12);
+  border:1px solid rgba(232,93,48,0.3); color:var(--accent); border-radius:20px; padding:2px 10px;
+}
+.btn-back {
+  font-size:0.82rem; color:var(--muted); background:var(--surface2);
+  border:1px solid var(--border); border-radius:8px; padding:6px 14px;
+  cursor:pointer; font-family:'Sarabun',sans-serif; text-decoration:none; transition:all 0.2s;
+}
+.btn-back:hover { color:var(--text); border-color:var(--accent); }
+.changes-badge { font-size:0.75rem; color:var(--gold); animation:pulse-text 1.5s ease-in-out infinite; }
+
+/* TABS */
+.tabs {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; overflow-x:auto; flex-shrink:0; padding:0 16px;
+}
+.tabs::-webkit-scrollbar { height:2px; }
+.tab-btn {
+  padding:12px 16px; border:none; background:none; color:var(--muted);
+  cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.85rem;
+  white-space:nowrap; border-bottom:2px solid transparent; transition:all 0.2s;
+}
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+.tab-btn:hover:not(.active) { color:var(--text); }
+.tab-count {
+  display:inline-block; background:var(--surface2); border-radius:10px;
+  padding:0 5px; font-size:0.62rem; margin-left:3px; color:var(--muted);
+}
+.tab-btn.active .tab-count { background:rgba(232,93,48,0.2); color:var(--accent); }
+
+/* MAIN */
+main { flex:1; padding:16px; max-width:800px; width:100%; margin:0 auto; padding-bottom:76px; }
+
+/* TOOLBAR */
+.toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.btn-add-item {
+  display:flex; align-items:center; gap:6px; background:var(--accent);
+  border:none; border-radius:8px; color:white; padding:8px 16px;
+  font-family:'Sarabun',sans-serif; font-size:0.88rem; font-weight:600;
+  cursor:pointer; transition:all 0.2s;
+}
+.btn-add-item:hover { filter:brightness(1.1); transform:translateY(-1px); }
+.item-count { font-size:0.78rem; color:var(--muted); }
+
+/* ITEM LIST */
+.item-list { display:flex; flex-direction:column; gap:6px; }
+.item-row {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; overflow:hidden; transition:border-color 0.2s;
+}
+.item-row.inactive { opacity:0.45; }
+.item-row.editing  { border-color:var(--accent); box-shadow:0 0 0 2px rgba(232,93,48,0.15); }
+
+.item-view { display:flex; align-items:center; padding:10px 14px; gap:12px; min-height:62px; }
+.item-thumb {
+  width:44px; height:44px; border-radius:8px; background:var(--surface2);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; overflow:hidden; font-size:1.6rem;
+}
+.item-thumb img { width:100%; height:100%; object-fit:cover; }
+.item-info { flex:1; min-width:0; }
+.item-info-name {
+  font-size:0.9rem; font-weight:600; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.item-info-meta { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+.item-price-badge {
+  font-family:'Prompt',sans-serif; font-size:0.88rem; font-weight:700;
+  color:var(--gold); flex-shrink:0; min-width:48px; text-align:right;
+}
+.item-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+
+.btn-toggle {
+  width:36px; height:20px; border-radius:10px; border:none;
+  cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0;
+}
+.btn-toggle.on  { background:var(--green); }
+.btn-toggle.off { background:var(--dim); }
+.btn-toggle::after {
+  content:''; position:absolute; width:14px; height:14px;
+  border-radius:50%; background:white; top:3px; transition:left 0.2s;
+}
+.btn-toggle.on::after  { left:19px; }
+.btn-toggle.off::after { left:3px; }
+
+.btn-icon {
+  padding:5px 9px; border-radius:6px; border:1px solid var(--border);
+  background:var(--surface2); color:var(--muted); font-size:0.82rem;
+  cursor:pointer; transition:all 0.2s;
+}
+.btn-icon:hover     { color:var(--text); border-color:var(--blue); }
+.btn-icon.del:hover { color:var(--red);  border-color:var(--red); background:rgba(248,81,73,0.08); }
+
+/* EDIT PANEL */
+.item-edit {
+  padding:14px 16px; display:none; flex-direction:column; gap:10px;
+  background:rgba(232,93,48,0.04); border-top:1px solid rgba(232,93,48,0.2);
+}
+.item-row.editing .item-edit { display:flex; }
+.edit-row   { display:flex; gap:10px; flex-wrap:wrap; }
+.edit-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:110px; }
+.edit-field label { font-size:0.72rem; color:var(--muted); }
+.edit-input {
+  background:var(--card); border:1px solid var(--border); border-radius:6px;
+  padding:7px 10px; color:var(--text); font-family:'Sarabun',sans-serif; font-size:0.88rem;
+  width:100%; transition:border-color 0.2s;
+}
+.edit-input:focus { outline:none; border-color:var(--accent); }
+.edit-actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn-save-edit {
+  padding:7px 20px; border-radius:7px; border:none;
+  background:var(--accent); color:white;
+  font-family:'Sarabun',sans-serif; font-size:0.85rem; font-weight:600; cursor:pointer;
+}
+.btn-cancel-edit {
+  padding:7px 14px; border-radius:7px; border:1px solid var(--border);
+  background:transparent; color:var(--muted);
+  font-family:'Sarabun',sans-serif; font-size:0.85rem; cursor:pointer;
+}
+.subcat-badge {
+  display:inline-block; font-size:0.62rem; padding:1px 6px; border-radius:10px;
+  background:rgba(88,166,255,0.12); color:var(--blue); border:1px solid rgba(88,166,255,0.2);
+  margin-left:5px; vertical-align:middle; white-space:nowrap;
+}
+
+/* SAVE BAR */
+.save-bar {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--surface); border-top:1px solid var(--border);
+  padding:10px 20px; display:flex; align-items:center; justify-content:space-between; z-index:50;
+}
+.save-status { font-size:0.82rem; color:var(--muted); }
+.save-status.success { color:var(--green); }
+.save-status.error   { color:var(--red); }
+.btn-save {
+  padding:9px 22px; border-radius:9px; border:none; background:var(--green); color:white;
+  font-family:'Sarabun',sans-serif; font-size:0.88rem; font-weight:600; cursor:pointer; transition:all 0.2s;
+}
+.btn-save:hover:not(:disabled) { filter:brightness(1.1); }
+.btn-save:disabled { opacity:0.35; cursor:not-allowed; }
+
+/* EMPTY / LOADING */
+.empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:0.88rem; }
+.empty-state .big { font-size:3rem; display:block; margin-bottom:12px; }
+.loading-state { text-align:center; padding:60px 20px; color:var(--muted); }
+.loading-state .spin { display:inline-block; font-size:2.5rem; animation:spin 1.5s linear infinite; }
+
+/* MODAL */
+.overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+  z-index:200; align-items:flex-end; justify-content:center;
+}
+@media (min-width:600px) { .overlay { align-items:center; } }
+.overlay.show { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:16px 16px 0 0; padding:24px; width:100%;
+  max-width:480px; animation:slideUp 0.25s ease; max-height:92dvh; overflow-y:auto;
+}
+@media (min-width:600px) { .modal { border-radius:16px; animation:popIn 0.22s ease; } }
+.modal-title {
+  font-family:'Prompt',sans-serif; font-size:1rem; font-weight:700;
+  color:var(--accent); margin-bottom:20px; text-align:center;
+}
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-grid .full { grid-column:1/-1; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-group label { font-size:0.78rem; color:var(--muted); }
+.form-input, .form-select {
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:9px 12px; color:var(--text); font-family:'Sarabun',sans-serif; font-size:0.9rem; width:100%;
+}
+.form-input:focus, .form-select:focus { outline:none; border-color:var(--accent); }
+.form-select option { background:var(--card); }
+.modal-actions { display:flex; gap:10px; margin-top:18px; }
+.btn-modal-cancel {
+  flex:1; padding:11px; border-radius:10px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); font-family:'Sarabun',sans-serif; font-size:0.9rem; cursor:pointer;
+}
+.btn-modal-confirm {
+  flex:2; padding:11px; border-radius:10px; border:none; background:var(--accent); color:white;
+  font-family:'Sarabun',sans-serif; font-size:0.9rem; font-weight:600; cursor:pointer; transition:filter 0.2s;
+}
+.btn-modal-confirm:hover { filter:brightness(1.1); }
+
+@keyframes spin        { from{transform:rotate(0deg)}    to{transform:rotate(360deg)} }
+@keyframes popIn       { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
+@keyframes slideUp     { from{transform:translateY(100%)} to{transform:translateY(0)} }
+@keyframes pulse-text  { 0%,100%{opacity:1} 50%{opacity:0.45} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-logo">🍲 Koiii POS</div>
+    <span class="header-badge">🍽️ จัดการเมนู</span>
+  </div>
+  <div class="header-right">
+    <span class="changes-badge" id="changesBadge" style="display:none">● มีการเปลี่ยนแปลง</span>
+    <a href="dashboard.html" class="btn-back" id="backBtn">← Dashboard</a>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-type="meats"    onclick="switchTab('meats',   this)">🥩 เนื้อสัตว์  <span class="tab-count" id="tc-meats"></span></button>
+  <button class="tab-btn"        data-type="vegs"     onclick="switchTab('vegs',    this)">🥬 ผัก/เครื่อง <span class="tab-count" id="tc-vegs"></span></button>
+  <button class="tab-btn"        data-type="soups"    onclick="switchTab('soups',   this)">🍲 น้ำซุป      <span class="tab-count" id="tc-soups"></span></button>
+  <button class="tab-btn"        data-type="sauces"   onclick="switchTab('sauces',  this)">🥜 น้ำจิ้ม     <span class="tab-count" id="tc-sauces"></span></button>
+  <button class="tab-btn"        data-type="desserts" onclick="switchTab('desserts',this)">🍰 ของหวาน    <span class="tab-count" id="tc-desserts"></span></button>
+</div>
+
+<main>
+  <div class="toolbar">
+    <button class="btn-add-item" onclick="openAddModal()">＋ เพิ่มเมนูใหม่</button>
+    <span class="item-count" id="itemCount"></span>
+  </div>
+  <div id="menuList">
+    <div class="loading-state"><span class="spin">🍲</span><br><br>กำลังโหลดเมนู...</div>
+  </div>
+</main>
+
+<div class="save-bar">
+  <span class="save-status" id="saveStatus">กำลังเชื่อมต่อ Sheets...</span>
+  <button class="btn-save" id="btnSave" onclick="saveToSheets()" disabled>💾 บันทึกลง Sheets</button>
+</div>
+
+<!-- ADD MODAL -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title">＋ เพิ่มเมนูใหม่</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>หมวดหมู่</label>
+        <select class="form-select" id="addType" onchange="onAddTypeChange()">
+          <option value="meats">🥩 เนื้อสัตว์</option>
+          <option value="vegs">🥬 ผัก/เครื่อง</option>
+          <option value="soups">🍲 น้ำซุป</option>
+          <option value="sauces">🥜 น้ำจิ้ม</option>
+          <option value="desserts">🍰 ของหวาน</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>ชื่อเมนู</label>
+        <input class="form-input" id="addName" type="text" placeholder="เช่น เนื้อแกะ">
+      </div>
+      <div class="form-group">
+        <label>ราคา (฿)</label>
+        <input class="form-input" id="addPrice" type="number" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label id="addMetaLabel">น้ำหนัก/หน่วย</label>
+        <input class="form-input" id="addMeta" type="text" placeholder="~100g/2ไม้">
+      </div>
+      <div class="form-group full" id="addSubCatGroup">
+        <label>หมวดย่อย</label>
+        <select class="form-select" id="addSubCat">
+          <option value="ผัก">ผัก</option>
+          <option value="เห็ด">เห็ด</option>
+          <option value="เต้าหู้">เต้าหู้</option>
+          <option value="แปรรูป">แปรรูป</option>
+        </select>
+      </div>
+      <div class="form-group full" id="addEmojiGroup" style="display:none">
+        <label>Emoji แสดงแทนรูป</label>
+        <input class="form-input" id="addEmoji" type="text" placeholder="🍲" maxlength="4">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeAddModal()">ยกเลิก</button>
+      <button class="btn-modal-confirm" onclick="confirmAddItem()">＋ เพิ่มเมนู</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxy4fm-cm2TSRCqke3ovxB4-H48B_WtHnuzieB5_LKYVqoDKOfBL9UNDHlr972D8Pom/exec';
+
+const IMG = {
+  'เนื้อหมูสามชั้น':'images/pork-belly.png','เนื้ออกไก่':'images/chicken-breast.png',
+  'สันคอเนื้อหมู':'images/pork-neck.png','สาหร่ายวากาเมะ':'images/wakame.png',
+  'มันฝรั่ง':'images/potato.png','เนื้อวัว':'images/beef.png',
+  'เห็ดเข็มทอง':'images/enoki.png','เห็ดหอม':'images/shiitake.png',
+  'เห็ดออรินจี':'images/eringi.png','แครอท':'images/carrot.png',
+  'กะหล่ำปลีหั่นฝอย':'images/cabbage.png','ข้าวโพดอ่อน':'images/baby-corn.png',
+  'ชิกุวะ':'images/chikuwa.png','นักเก็ตปู':'images/crab-nugget.png',
+  'ผักกวางตุ้งฮ่องเต้':'images/bok-choy.png','ผักกาดขาว':'images/napa-cabbage.png',
+  'ผักบุ้งจีน':'images/morning-glory.png','ฟองเต้าหู้แท่ง':'images/tofu-skin-stick.png',
+  'ฟองเต้าหู้สามเหลี่ยม':'images/tofu-skin-triangle.png','ปูอัด':'images/crab-stick.png',
+  'ลูกชิ้นกุ้ง':'images/shrimp-ball.png','ลูกชิ้นชิชาโมะ':'images/shishamo-ball.png',
+  'ลูกชิ้นปลา':'images/fish-ball.png','วุ้นเส้น':'images/glass-noodle.png',
+  'โบโลน่าหมูและไก่':'images/bologna.png','ฟองเต้าหู้ทอด':'images/fried-tofu-skin.png',
+  'เต้าหู้ชีส':'images/cheese-tofu.png','เต้าหู้ปลาสี่เหลี่ยม':'images/fish-tofu-square.png',
+  'เต้าหู้รูปปลา':'images/fish-tofu.png','ไส้กรอกชีส':'images/cheese-sausage.png',
+  'ไส้กรอกหมู':'images/pork-sausage.png','ปอ๊ด':'images/pod.png',
+  'ชีสเค้ก':'images/cheesecake.png','ช็อคโกแลตชีสเค้ก':'images/chocolate-cheesecake.png',
+};
+
+const DEFAULT_ITEMS = [
+  {id:'m1', type:'meats',   name:'เนื้อวัว',              price:99, imgKey:'เนื้อวัว',              weightDesc:'~100g/2ไม้', subCat:'เนื้อสัตว์', emoji:'',    active:true},
+  {id:'m2', type:'meats',   name:'เนื้อหมูสามชั้น',       price:79, imgKey:'เนื้อหมูสามชั้น',       weightDesc:'~120g/2ไม้', subCat:'เนื้อสัตว์', emoji:'',    active:true},
+  {id:'m3', type:'meats',   name:'เนื้ออกไก่',            price:69, imgKey:'เนื้ออกไก่',            weightDesc:'~120g/2ไม้', subCat:'เนื้อสัตว์', emoji:'',    active:true},
+  {id:'m4', type:'meats',   name:'สันคอเนื้อหมู',         price:79, imgKey:'สันคอเนื้อหมู',         weightDesc:'~130g/2ไม้', subCat:'เนื้อสัตว์', emoji:'',    active:true},
+  {id:'v1', type:'vegs',    name:'ผักกวางตุ้งฮ่องเต้',    price:25, imgKey:'ผักกวางตุ้งฮ่องเต้',    weightDesc:'~60g/ไม้',   subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v2', type:'vegs',    name:'ผักกาดขาว',             price:25, imgKey:'ผักกาดขาว',             weightDesc:'~80g/ชิ้น',  subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v3', type:'vegs',    name:'ผักบุ้งจีน',            price:25, imgKey:'ผักบุ้งจีน',            weightDesc:'~50g/กำ',    subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v4', type:'vegs',    name:'กะหล่ำปลีหั่นฝอย',     price:20, imgKey:'กะหล่ำปลีหั่นฝอย',     weightDesc:'~70g/จาน',   subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v5', type:'vegs',    name:'แครอท',                 price:25, imgKey:'แครอท',                 weightDesc:'~80g/2ไม้',  subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v6', type:'vegs',    name:'ข้าวโพดอ่อน',           price:25, imgKey:'ข้าวโพดอ่อน',           weightDesc:'~60g/2ไม้',  subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v7', type:'vegs',    name:'มันฝรั่ง',              price:25, imgKey:'มันฝรั่ง',              weightDesc:'~90g/2ไม้',  subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v8', type:'vegs',    name:'สาหร่ายวากาเมะ',        price:29, imgKey:'สาหร่ายวากาเมะ',        weightDesc:'~40g/จาน',   subCat:'ผัก',         emoji:'',    active:true},
+  {id:'v9', type:'vegs',    name:'เห็ดเข็มทอง',           price:35, imgKey:'เห็ดเข็มทอง',           weightDesc:'~50g/2ไม้',  subCat:'เห็ด',        emoji:'',    active:true},
+  {id:'v10',type:'vegs',    name:'เห็ดหอม',               price:40, imgKey:'เห็ดหอม',               weightDesc:'~60g/2ไม้',  subCat:'เห็ด',        emoji:'',    active:true},
+  {id:'v11',type:'vegs',    name:'เห็ดออรินจี',           price:40, imgKey:'เห็ดออรินจี',           weightDesc:'~70g/2ไม้',  subCat:'เห็ด',        emoji:'',    active:true},
+  {id:'v12',type:'vegs',    name:'เต้าหู้ชีส',            price:39, imgKey:'เต้าหู้ชีส',            weightDesc:'~50g/2ไม้',  subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v13',type:'vegs',    name:'เต้าหู้ปลาสี่เหลี่ยม', price:35, imgKey:'เต้าหู้ปลาสี่เหลี่ยม', weightDesc:'~60g/2ไม้',  subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v14',type:'vegs',    name:'เต้าหู้รูปปลา',         price:35, imgKey:'เต้าหู้รูปปลา',         weightDesc:'~50g/2ไม้',  subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v15',type:'vegs',    name:'ฟองเต้าหู้แท่ง',        price:30, imgKey:'ฟองเต้าหู้แท่ง',        weightDesc:'~40g/2ไม้',  subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v22',type:'vegs',    name:'ฟองเต้าหู้ทอด',         price:35, imgKey:'ฟองเต้าหู้ทอด',         weightDesc:'~45g/ไม้',   subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v23',type:'vegs',    name:'ฟองเต้าหู้สามเหลี่ยม', price:35, imgKey:'ฟองเต้าหู้สามเหลี่ยม', weightDesc:'~50g/2ไม้',  subCat:'เต้าหู้',     emoji:'',    active:true},
+  {id:'v16',type:'vegs',    name:'ไส้กรอกหมู',            price:39, imgKey:'ไส้กรอกหมู',            weightDesc:'~80g/ไม้',   subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v17',type:'vegs',    name:'ไส้กรอกชีส',            price:45, imgKey:'ไส้กรอกชีส',            weightDesc:'~80g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v18',type:'vegs',    name:'ชิกุวะ',                price:39, imgKey:'ชิกุวะ',                weightDesc:'~60g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v19',type:'vegs',    name:'นักเก็ตปู',             price:45, imgKey:'นักเก็ตปู',             weightDesc:'~50g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v20',type:'vegs',    name:'ปูอัด',                 price:39, imgKey:'ปูอัด',                 weightDesc:'~60g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v21',type:'vegs',    name:'ลูกชิ้นกุ้ง',           price:45, imgKey:'ลูกชิ้นกุ้ง',           weightDesc:'~60g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v26',type:'vegs',    name:'ลูกชิ้นชิชาโมะ',        price:45, imgKey:'ลูกชิ้นชิชาโมะ',        weightDesc:'~55g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v27',type:'vegs',    name:'ลูกชิ้นปลา',            price:39, imgKey:'ลูกชิ้นปลา',            weightDesc:'~60g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v24',type:'vegs',    name:'วุ้นเส้น',              price:25, imgKey:'วุ้นเส้น',              weightDesc:'~80g/จาน',   subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'v25',type:'vegs',    name:'โบโลน่าหมูและไก่',      price:39, imgKey:'โบโลน่าหมูและไก่',      weightDesc:'~70g/2ไม้',  subCat:'แปรรูป',      emoji:'',    active:true},
+  {id:'s1', type:'soups',   name:'ซุปใส',                 price:0,  imgKey:'', weightDesc:'รสอ่อน หวานธรรมชาติ',  subCat:'', emoji:'🫙',  active:true},
+  {id:'s2', type:'soups',   name:'ซุปสุกี้',              price:0,  imgKey:'', weightDesc:'รสจัด เผ็ดนิดหน่อย',   subCat:'', emoji:'🍲',  active:true},
+  {id:'s3', type:'soups',   name:'ซุปมาล่า',              price:20, imgKey:'', weightDesc:'เผ็ดจัด +฿20',          subCat:'', emoji:'🌶️', active:true},
+  {id:'sc1',type:'sauces',  name:'น้ำจิ้มงาถั่ว',         price:0,  imgKey:'', weightDesc:'รสหวานมัน กลิ่นงา',     subCat:'', emoji:'🥜',  active:true},
+  {id:'sc2',type:'sauces',  name:'น้ำจิ้มพอสซึ',          price:0,  imgKey:'', weightDesc:'รสเปรี้ยวอ่อน ญี่ปุ่น', subCat:'', emoji:'🍶',  active:true},
+  {id:'sc3',type:'sauces',  name:'น้ำจิ้มสุกี้',          price:0,  imgKey:'', weightDesc:'รสจัด เผ็ดหวาน',        subCat:'', emoji:'🌿',  active:true},
+  {id:'d1', type:'desserts',name:'ชีสเค้ก',               price:79, imgKey:'ชีสเค้ก',               weightDesc:'ชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ',subCat:'',emoji:'',active:true},
+  {id:'d2', type:'desserts',name:'ช็อคโกแลตชีสเค้ก',      price:79, imgKey:'ช็อคโกแลตชีสเค้ก',      weightDesc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ',subCat:'',emoji:'',active:true},
+];
+
+// ─── STATE ───
+let items      = [];
+let activeTab  = 'meats';
+let editingId  = null;
+let hasChanges = false;
+
+// ─── INIT ───
+async function init() {
+  setStatus('กำลังโหลดเมนูจาก Sheets...');
+  const cached = localStorage.getItem('koiii_menu_v2');
+  if (cached) {
+    try { items = JSON.parse(cached); renderAll(); setStatus('โหลด cache — กำลัง sync...'); }
+    catch(e) {}
+  }
+  try {
+    const res  = await fetch(SCRIPT_URL + '?action=getMenu');
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      items = data.map(r => ({ ...r, price: parseFloat(r.price)||0, active: r.active==='TRUE'||r.active===true }));
+      localStorage.setItem('koiii_menu_v2', JSON.stringify(items));
+      setStatus('โหลดจาก Sheets สำเร็จ ✓');
+    } else {
+      if (items.length === 0) { items = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); markChanged(); }
+      setStatus(items.length ? 'ใช้ข้อมูล cache' : 'ใช้เมนู default — กด "บันทึกลง Sheets" เพื่อ sync ครั้งแรก');
+    }
+  } catch(e) {
+    if (items.length === 0) { items = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); markChanged(); }
+    setStatus('⚠️ เชื่อมต่อ Sheets ไม่ได้ — ใช้ข้อมูล local');
+  }
+  renderAll();
+}
+
+// ─── RENDER ───
+function renderAll() { updateTabCounts(); renderTab(); }
+
+function updateTabCounts() {
+  ['meats','vegs','soups','sauces','desserts'].forEach(type => {
+    const all = items.filter(i => i.type === type);
+    const on  = all.filter(i => i.active).length;
+    const el  = document.getElementById('tc-' + type);
+    if (el) el.textContent = on + (on !== all.length ? '/'+all.length : '');
+  });
+}
+
+function switchTab(type, btn) {
+  activeTab = type; editingId = null;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderTab();
+}
+
+function renderTab() {
+  const list  = items.filter(i => i.type === activeTab);
+  const on    = list.filter(i => i.active).length;
+  document.getElementById('itemCount').textContent = `แสดงใน POS: ${on} / ${list.length} รายการ`;
+  const el = document.getElementById('menuList');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><span class="big">🍽️</span>ยังไม่มีเมนูในหมวดนี้<br><small style="color:var(--dim)">กด "+ เพิ่มเมนูใหม่"</small></div>';
+    return;
+  }
+  el.innerHTML = '<div class="item-list">' + list.map(renderRow).join('') + '</div>';
+}
+
+function renderRow(item) {
+  const src   = IMG[item.imgKey] || '';
+  const thumb = src
+    ? `<img src="${src}" alt="${escH(item.name)}" onerror="this.parentNode.textContent='${item.emoji||'🍽️'}';">`
+    : (item.emoji || '🍽️');
+  const badge = (item.subCat && item.type==='vegs') ? `<span class="subcat-badge">${item.subCat}</span>` : '';
+  const price = item.price===0 ? '<span style="color:var(--green);font-size:0.78rem">ฟรี</span>' : `฿${item.price}`;
+  const isEd  = editingId === item.id;
+  const editPanel = isEd ? `
+    <div class="item-edit">
+      <div class="edit-row">
+        <div class="edit-field" style="flex:2">
+          <label>ชื่อเมนู</label>
+          <input class="edit-input" id="en-${item.id}" value="${escH(item.name)}" type="text">
+        </div>
+        <div class="edit-field" style="flex:0 0 90px">
+          <label>ราคา (฿)</label>
+          <input class="edit-input" id="ep-${item.id}" value="${item.price}" type="number" min="0">
+        </div>
+      </div>
+      <div class="edit-row">
+        <div class="edit-field">
+          <label>${['soups','sauces'].includes(item.type)?'คำอธิบาย':'น้ำหนัก/หน่วย'}</label>
+          <input class="edit-input" id="em-${item.id}" value="${escH(item.weightDesc||'')}" type="text">
+        </div>
+        ${['soups','sauces'].includes(item.type)?`
+          <div class="edit-field" style="flex:0 0 80px">
+            <label>Emoji</label>
+            <input class="edit-input" id="ee-${item.id}" value="${item.emoji||''}" type="text" maxlength="4">
+          </div>`:''}
+        ${item.type==='vegs'?`
+          <div class="edit-field" style="flex:0 0 110px">
+            <label>หมวดย่อย</label>
+            <select class="edit-input" id="es-${item.id}">
+              ${['ผัก','เห็ด','เต้าหู้','แปรรูป'].map(c=>`<option${c===item.subCat?' selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>`:''}
+      </div>
+      <div class="edit-actions">
+        <button class="btn-cancel-edit" onclick="cancelEdit()">ยกเลิก</button>
+        <button class="btn-save-edit"   onclick="saveEdit('${item.id}')">✓ บันทึก</button>
+      </div>
+    </div>` : '';
+  return `
+  <div class="item-row${item.active?'':' inactive'}${isEd?' editing':''}" id="row-${item.id}">
+    <div class="item-view">
+      <div class="item-thumb">${thumb}</div>
+      <div class="item-info">
+        <div class="item-info-name">${escH(item.name)}${badge}</div>
+        <div class="item-info-meta">${escH(item.weightDesc||'')}</div>
+      </div>
+      <div class="item-price-badge">${price}</div>
+      <div class="item-actions">
+        <button class="btn-toggle ${item.active?'on':'off'}"
+          onclick="toggleActive('${item.id}')"
+          title="${item.active?'แสดงใน POS — กดเพื่อซ่อน':'ซ่อนจาก POS — กดเพื่อแสดง'}"></button>
+        <button class="btn-icon"     onclick="startEdit('${item.id}')">✏️</button>
+        <button class="btn-icon del" onclick="deleteItem('${item.id}')">🗑</button>
+      </div>
+    </div>
+    ${editPanel}
+  </div>`;
+}
+
+// ─── ACTIONS ───
+function startEdit(id) {
+  editingId = id; renderTab();
+  setTimeout(() => {
+    document.getElementById('row-'+id)?.scrollIntoView({behavior:'smooth',block:'nearest'});
+    document.getElementById('en-'+id)?.focus();
+  }, 40);
+}
+function cancelEdit() { editingId = null; renderTab(); }
+function saveEdit(id) {
+  const item = items.find(i=>i.id===id); if(!item) return;
+  const name = document.getElementById('en-'+id)?.value.trim();
+  if (!name) { document.getElementById('en-'+id)?.focus(); return; }
+  item.name       = name;
+  item.price      = Math.max(0, parseFloat(document.getElementById('ep-'+id)?.value)||0);
+  item.weightDesc = document.getElementById('em-'+id)?.value.trim()||'';
+  const ee = document.getElementById('ee-'+id); if(ee) item.emoji  = ee.value;
+  const es = document.getElementById('es-'+id); if(es) item.subCat = es.value;
+  editingId = null; markChanged(); renderAll();
+}
+function toggleActive(id) {
+  const item = items.find(i=>i.id===id);
+  if(item) { item.active = !item.active; markChanged(); renderAll(); }
+}
+function deleteItem(id) {
+  const item = items.find(i=>i.id===id); if(!item) return;
+  if(!confirm(`ลบ "${item.name}" ออกจากเมนูใช่ไหม?\n\n💡 กด toggle เพื่อซ่อนชั่วคราวแทนการลบ`)) return;
+  items = items.filter(i=>i.id!==id);
+  if(editingId===id) editingId=null;
+  markChanged(); renderAll();
+}
+
+// ─── ADD MODAL ───
+function onAddTypeChange() {
+  const t = document.getElementById('addType').value;
+  document.getElementById('addSubCatGroup').style.display = t==='vegs' ? '' : 'none';
+  document.getElementById('addEmojiGroup').style.display  = (t==='soups'||t==='sauces') ? '' : 'none';
+  document.getElementById('addMetaLabel').textContent     = (t==='soups'||t==='sauces') ? 'คำอธิบาย' : 'น้ำหนัก/หน่วย';
+  document.getElementById('addMeta').placeholder          = (t==='soups'||t==='sauces') ? 'รสอ่อน หวานธรรมชาติ' : '~100g/2ไม้';
+}
+function openAddModal() {
+  document.getElementById('addType').value  = activeTab;
+  ['addName','addMeta','addEmoji'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('addPrice').value = '';
+  onAddTypeChange();
+  document.getElementById('addModal').classList.add('show');
+  setTimeout(()=>document.getElementById('addName').focus(), 300);
+}
+function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
+function confirmAddItem() {
+  const t     = document.getElementById('addType').value;
+  const name  = document.getElementById('addName').value.trim();
+  if(!name) {
+    const el = document.getElementById('addName');
+    el.style.borderColor='var(--red)'; el.focus();
+    setTimeout(()=>el.style.borderColor='',1500); return;
+  }
+  items.push({
+    id:         t.charAt(0)+'_'+Date.now(), type:t, name,
+    price:      parseFloat(document.getElementById('addPrice').value)||0,
+    imgKey:     name,
+    weightDesc: document.getElementById('addMeta').value.trim(),
+    subCat:     t==='vegs' ? document.getElementById('addSubCat').value : '',
+    emoji:      document.getElementById('addEmoji').value.trim() || (t==='soups'?'🍲':t==='sauces'?'🥜':''),
+    active:     true,
+  });
+  markChanged(); closeAddModal();
+  switchTab(t, document.querySelector(`.tab-btn[data-type="${t}"]`));
+}
+
+// ─── SAVE ───
+async function saveToSheets() {
+  const btn = document.getElementById('btnSave');
+
+  // ปิดปุ่มก่อนเพื่อกันกดซ้ำ แล้วเปลี่ยนข้อความให้รู้ว่ากำลังทำงาน
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังบันทึก...';
+  setStatus('กำลังส่งข้อมูลไป Sheets...');
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+
+      // ✅ แก้ไขจากของเดิม:
+      // ❌ เดิม: mode:'no-cors' + Content-Type:'application/json'
+      //    ปัญหา: no-cors ทำให้เบราว์เซอร์ไม่อ่านผลลัพธ์กลับมา → ไม่รู้ว่า save สำเร็จหรือเปล่า
+      //    และ Google Apps Script จะบล็อก Content-Type:'application/json' เพราะถือว่าเป็น "cross-origin complex request"
+      //
+      // ✅ ใหม่: ไม่ใส่ mode + เปลี่ยนเป็น Content-Type:'text/plain'
+      //    Google Apps Script ยอมรับ text/plain โดยไม่บล็อก (เป็น simple request)
+      //    และตัว Apps Script ก็ยัง JSON.parse ข้อมูล body ได้ตามปกติ
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+
+      // แปลง items (array ของเมนูทั้งหมด) เป็นข้อความ JSON แล้วส่งไป
+      body: JSON.stringify({ action: 'saveMenu', items }),
+    });
+
+    // บันทึกลง localStorage ด้วย เผื่อโหลดหน้าใหม่ตอน offline จะได้มีข้อมูลแสดง
+    localStorage.setItem('koiii_menu_v2', JSON.stringify(items));
+
+    // รีเซ็ตสถานะ "มีการเปลี่ยนแปลง"
+    hasChanges = false;
+    document.getElementById('changesBadge').style.display = 'none';
+
+    // อัปเดต UI บอกว่าสำเร็จ และ disable ปุ่มอีกครั้ง (เพราะยังไม่มีการเปลี่ยนแปลงใหม่)
+    btn.textContent = '💾 บันทึกลง Sheets';
+    btn.disabled = true;
+    setStatus('บันทึกสำเร็จ ✓  POS จะใช้เมนูใหม่ครั้งหน้าที่เปิด', 'success');
+
+  } catch(e) {
+    // ถ้าส่งไม่ได้ (เช่น internet ขาด) ให้เปิดปุ่มกลับมาให้ลองใหม่ได้
+    btn.disabled = false;
+    btn.textContent = '💾 บันทึกลง Sheets';
+    setStatus('❌ บันทึกไม่ได้ ตรวจสอบ internet แล้วลองใหม่', 'error');
+  }
+}
+
+// ─── HELPERS ───
+
+// markChanged — เรียกทุกครั้งที่มีการแก้ไขเมนู
+// เพื่อเปิดปุ่ม Save และแสดงสัญญาณเตือนว่า "ยังไม่ได้บันทึก"
+function markChanged() {
+  hasChanges = true;
+  document.getElementById('changesBadge').style.display = 'inline'; // แสดงจุดสีส้ม "● มีการเปลี่ยนแปลง"
+  document.getElementById('btnSave').disabled = false;               // เปิดปุ่ม Save
+  setStatus('มีการเปลี่ยนแปลง — กด "บันทึกลง Sheets" เพื่อ save');
+}
+
+// setStatus — อัปเดตข้อความสถานะที่แถบล่าง
+// msg = ข้อความ, cls = 'success' หรือ 'error' หรือ '' (ปกติ)
+function setStatus(msg, cls) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.className = 'save-status' + (cls ? ' ' + cls : '');
+}
+
+// escH — แปลงอักขระพิเศษ HTML ให้ปลอดภัยก่อนนำไปใส่ใน innerHTML
+// เช่น < > " & จะไม่ถูกตีความเป็น HTML tag
+function escH(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── EVENT LISTENERS ───
+
+// ถ้ากดปุ่ม "← Dashboard" ขณะที่มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+// ให้ถามยืนยันก่อนออกหน้า
+document.getElementById('backBtn').addEventListener('click', e => {
+  if (hasChanges && !confirm('มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก\nออกไปโดยไม่ save ไหม?')) {
+    e.preventDefault(); // ยกเลิกการกดลิงก์ถ้าผู้ใช้กด "ยกเลิก"
+  }
+});
+
+// ✅ แก้ไขจากของเดิม:
+// ❌ เดิม: if(e.target === this)
+//    ปัญหา: ใช้ Arrow Function (=>) ทำให้ "this" ไม่ได้ชี้มาที่ overlay
+//    แต่ชี้ไปที่ Window (หน้าต่างเบราว์เซอร์) แทน → เงื่อนไขไม่เป็นจริงเลย → modal ไม่ปิด
+//
+// ✅ ใหม่: เช็คจาก e.target.id ตรงๆ ว่ากดที่พื้นหลังดำ (overlay) หรือเปล่า
+//    ถ้า id ตรงกัน แปลว่ากดพื้นหลัง → ปิด modal
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target.id === 'addModal') closeAddModal();
+});
+
+init();
+</script>
+</body>
+</html>
