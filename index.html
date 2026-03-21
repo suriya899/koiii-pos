@@ -1034,6 +1034,11 @@ async function loadMenuFromSheets() {
         // if (grouped[t]) ป้องกันกรณีที่ข้อมูลใน Sheets มี type แปลกๆ ที่ไม่รู้จัก
         if (grouped[t]) {
           grouped[t].push(item);
+
+          item.img    = item.imgKey     || item.img    || '';
+          item.weight = item.weightDesc || item.weight || '';
+          item.cat    = item.subCat     || item.cat    || '';
+          
         }
       });
  
