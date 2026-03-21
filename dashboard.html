@@ -1,357 +1,446 @@
 <!DOCTYPE html>
+<!--
+  dashboard.html — หน้า Dashboard สำหรับเจ้าของร้าน
+  ดูยอดขาย, เมนูขายดี, สรุปรายวัน/รายเดือน
+  เชื่อมกับ Google Sheets ผ่าน Apps Script
+-->
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<!-- viewport: บอกมือถือให้แสดงผลเต็มหน้าจอ ไม่ย่อ -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Koiii POS — Dashboard</title>
+<!-- โหลดฟอนต์ Prompt (หัวข้อ/ตัวเลข) และ Sarabun (เนื้อหาภาษาไทย) -->
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
+
+/* ============================================================
+   CSS VARIABLES — สีและค่าที่ใช้ซ้ำทั่วทั้งหน้า
+   แก้ที่นี่จุดเดียวเพื่อเปลี่ยนสีทั้งระบบ
+   ============================================================ */
 :root {
-  --bg:      #0d1117;
-  --surface: #161b22;
-  --surface2:#1c2330;
-  --card:    #21262d;
-  --border:  #30363d;
-  --accent:  #e85d30;
-  --gold:    #f0a830;
-  --green:   #3fb950;
-  --blue:    #58a6ff;
-  --red:     #f85149;
-  --text:    #e6edf3;
-  --muted:   #7d8590;
-  --dim:     #484f58;
+  --bg:      #0d1117; /* พื้นหลังหลัก — ดำสนิท */
+  --surface: #161b22; /* พื้นหลัง card/header — เทาเข้ม */
+  --surface2:#1c2330; /* พื้นหลัง sub-element — เทาเข้มกลาง */
+  --card:    #21262d; /* พื้นหลัง modal/input — เทา */
+  --border:  #30363d; /* เส้นขอบ */
+  --accent:  #e85d30; /* สีส้มหลักของแบรนด์ */
+  --gold:    #f0a830; /* สีทอง — ใช้แสดงราคา */
+  --green:   #3fb950; /* สีเขียว — สำเร็จ/เมนูขายดี */
+  --blue:    #58a6ff; /* สีฟ้า — จำนวนบิล/ทานที่ร้าน */
+  --red:     #f85149; /* สีแดง — ข้อผิดพลาด */
+  --purple:  #bc8cff; /* สีม่วง — ส่วนลด (ใช้ในอนาคต) */
+  --text:    #e6edf3; /* ตัวอักษรหลัก — ขาวนวล */
+  --muted:   #7d8590; /* ตัวอักษรรอง — เทากลาง */
+  --dim:     #484f58; /* ตัวอักษรจาง — เทาเข้ม */
 }
+
+/* ล้างค่า default ของ browser ทุก element */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
   font-family: 'Sarabun', sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100dvh;
+  min-height: 100dvh; /* dvh = dynamic viewport height รองรับมือถือที่ address bar ซ่อนได้ */
 }
 
-/* HEADER */
+/* ============================================================
+   HEADER — แถบบนสุด ติดหน้าจอตลอดเวลา
+   ============================================================ */
 header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  height: 60px;
+  padding: 0 16px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
+  position: sticky; /* ติดด้านบนแม้ scroll */
+  top: 0;
+  z-index: 100; /* อยู่เหนือ element อื่นไม่ถูกบัง */
 }
-.header-left {
-  display: flex; align-items: center; gap: 12px;
-}
-.header-logo {
+.header-left  { display: flex; align-items: center; gap: 10px; }
+.header-logo  {
   font-family: 'Prompt', sans-serif;
-  font-size: 1.1rem; font-weight: 800;
-  color: var(--accent);
+  font-size: 1rem; font-weight: 800; color: var(--accent);
 }
+/* ป้ายเล็กบอกว่าอยู่หน้า Dashboard */
 .header-badge {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   background: rgba(232,93,48,0.12);
   border: 1px solid rgba(232,93,48,0.3);
-  color: var(--accent);
-  border-radius: 20px;
-  padding: 2px 10px;
+  color: var(--accent); border-radius: 20px; padding: 2px 8px;
 }
-.header-right { display: flex; align-items: center; gap: 12px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* ปุ่มกลับหน้า POS */
 .btn-back {
-  font-size: 0.82rem;
-  color: var(--muted);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 14px;
-  cursor: pointer;
-  font-family: 'Sarabun', sans-serif;
-  text-decoration: none;
-  transition: all 0.2s;
+  font-size: 0.78rem; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 12px;
+  cursor: pointer; font-family: 'Sarabun', sans-serif;
+  text-decoration: none; transition: all 0.2s; white-space: nowrap;
 }
 .btn-back:hover { color: var(--text); border-color: var(--accent); }
-.last-update { font-size: 0.75rem; color: var(--dim); }
 
-/* MAIN */
-main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+/* ข้อความ "อัปเดต xx:xx" — ซ่อนบนมือถือเพราะพื้นที่แคบ */
+.last-update { font-size: 0.72rem; color: var(--dim); }
+@media (max-width: 480px) { .last-update { display: none; } }
 
-/* DATE FILTER */
-.date-filter {
-  display: flex; gap: 8px; margin-bottom: 24px;
-  flex-wrap: wrap; align-items: center;
+/* ============================================================
+   MAIN — พื้นที่เนื้อหาหลัก
+   max-width จำกัดความกว้างบนจอใหญ่ + margin:auto จัดกึ่งกลาง
+   ============================================================ */
+main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+
+/* ============================================================
+   ✅ ใหม่: VIEW TABS — สลับดูแบบรายวัน หรือรายเดือน
+   ============================================================ */
+.view-tabs {
+  display: flex; gap: 6px;
+  margin-bottom: 16px;
 }
-.date-filter label { font-size: 0.82rem; color: var(--muted); }
+.view-tab {
+  padding: 7px 18px; border-radius: 20px; /* ขอบโค้งมนแบบ pill */
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); cursor: pointer;
+  font-family: 'Sarabun', sans-serif; font-size: 0.82rem; font-weight: 600;
+  transition: all 0.2s;
+}
+/* แท็บที่กำลังเลือกอยู่ — พื้นหลังสีส้ม */
+.view-tab.active {
+  background: var(--accent); border-color: var(--accent); color: white;
+}
+
+/* ============================================================
+   DATE FILTER — ส่วนเลือกวันที่ / เดือน
+   ============================================================ */
+.date-filter {
+  display: flex; gap: 8px; margin-bottom: 20px;
+  flex-wrap: wrap; /* ขึ้นบรรทัดใหม่ได้บนมือถือ */
+  align-items: center;
+}
+.date-filter label { font-size: 0.8rem; color: var(--muted); }
 .date-input {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 12px;
-  color: var(--text);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 0.85rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px;
+  color: var(--text); font-family: 'Sarabun', sans-serif; font-size: 0.82rem;
   cursor: pointer;
+  flex: 1; min-width: 120px; max-width: 180px; /* ✅ ใหม่: ควบคุมขนาดบนมือถือ */
 }
 .date-input:focus { outline: none; border-color: var(--accent); }
 .btn-filter {
-  background: var(--accent);
-  border: none; border-radius: 8px;
-  padding: 7px 16px;
-  color: white;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 0.85rem; font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
+  background: var(--accent); border: none; border-radius: 8px;
+  padding: 7px 14px; color: white;
+  font-family: 'Sarabun', sans-serif; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
 }
 .btn-filter:hover { filter: brightness(1.1); }
 .btn-today {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 16px;
-  color: var(--muted);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 14px; color: var(--muted);
+  font-family: 'Sarabun', sans-serif; font-size: 0.82rem;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
 }
 .btn-today:hover { color: var(--text); border-color: var(--accent); }
 
-/* STAT CARDS */
+/* ============================================================
+   STAT CARDS — การ์ดตัวเลขสรุป 4 ใบ (ยอดขาย, บิล, เฉลี่ย, เมนูดี)
+   ✅ ใหม่: ใช้ repeat(2,1fr) บนมือถือ แทน auto-fill minmax
+   เพราะ auto-fill อาจทำให้การ์ดเล็กเกินไปบนหน้าจอแคบ
+   ============================================================ */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(2, 1fr); /* มือถือ: 2 คอลัมน์ */
+  gap: 10px;
+  margin-bottom: 16px;
 }
+/* desktop (≥600px): 4 คอลัมน์ */
+@media (min-width: 600px) {
+  .stat-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+}
+
 .stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 20px;
-  position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  position: relative; /* จำเป็นสำหรับ ::before (แถบสีบนสุด) */
   overflow: hidden;
-  animation: fadeUp 0.4s ease both;
+  animation: fadeUp 0.4s ease both; /* เลื่อนขึ้นมาตอนโหลด */
 }
+/* แถบสีบนสุดของการ์ด — แต่ละการ์ดมีสีต่างกัน */
 .stat-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
+  top: 0; left: 0; right: 0; height: 3px;
 }
 .stat-card.revenue::before { background: var(--accent); }
 .stat-card.bills::before   { background: var(--blue); }
 .stat-card.avg::before     { background: var(--gold); }
 .stat-card.topitem::before { background: var(--green); }
 
-.stat-icon { font-size: 1.8rem; margin-bottom: 8px; }
-.stat-label {
-  font-size: 0.78rem; color: var(--muted);
-  margin-bottom: 4px;
-}
+.stat-icon  { font-size: 1.6rem; margin-bottom: 6px; }
+.stat-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
 .stat-value {
   font-family: 'Prompt', sans-serif;
-  font-size: 1.6rem; font-weight: 700;
-  color: var(--text);
-  line-height: 1;
+  font-size: 1.3rem; font-weight: 700; /* ✅ ใหม่: เล็กลงนิดหน่อยให้พอดีมือถือ */
+  color: var(--text); line-height: 1.1;
 }
+/* desktop: ตัวเลขใหญ่ขึ้น */
+@media (min-width: 600px) { .stat-value { font-size: 1.5rem; } }
 .stat-value.accent { color: var(--accent); }
 .stat-value.blue   { color: var(--blue); }
 .stat-value.gold   { color: var(--gold); }
 .stat-value.green  { color: var(--green); }
-.stat-sub {
-  font-size: 0.72rem; color: var(--dim);
-  margin-top: 4px;
+.stat-sub { font-size: 0.68rem; color: var(--dim); margin-top: 3px; }
+
+/* ============================================================
+   ✅ ใหม่: BREAKDOWN CARDS — สรุปแยกประเภท
+   (ทานที่ร้าน / กลับบ้าน / ส่วนลด)
+   ============================================================ */
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* มือถือ: 2 คอลัมน์ */
+  gap: 10px; margin-bottom: 16px;
+}
+/* desktop: 3 คอลัมน์เท่ากันทุกการ์ด */
+@media (min-width: 600px) {
+  .breakdown-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* SECTIONS */
+/* การ์ดส่วนลด:
+   - มือถือ (2 คอลัมน์): span เต็ม 2 คอลัมน์
+   - desktop (3 คอลัมน์): กลับมา 1 คอลัมน์ปกติ
+   ใช้ class แทน inline style เพราะ inline style มี specificity สูงกว่า
+   @media query เลย override ไม่ได้ถ้าใช้ inline */
+.breakdown-card.discount-card { grid-column: span 2; }
+@media (min-width: 600px) {
+  .breakdown-card.discount-card { grid-column: span 1; }
+}
+
+.breakdown-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  animation: fadeUp 0.45s ease both;
+}
+.bd-icon  { font-size: 1.4rem; margin-bottom: 5px; }
+.bd-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
+.bd-value {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.1rem; font-weight: 700;
+}
+.bd-value.dine     { color: var(--blue); }   /* ทานที่ร้าน → สีฟ้า */
+.bd-value.takeaway { color: var(--green); }  /* กลับบ้าน → สีเขียว */
+.bd-value.discount { color: var(--purple); } /* ส่วนลด → สีม่วง */
+.bd-sub { font-size: 0.68rem; color: var(--dim); margin-top: 3px; }
+
+/* ป้ายเล็ก "เร็วๆ นี้" สำหรับฟีเจอร์ที่ยังไม่มี */
+.bd-tag {
+  display: inline-block; font-size: 0.6rem;
+  background: rgba(188,140,255,0.1); color: var(--purple);
+  border: 1px solid rgba(188,140,255,0.25);
+  border-radius: 8px; padding: 1px 6px;
+  margin-left: 4px; vertical-align: middle;
+}
+
+/* ============================================================
+   SECTION GRID — ตาราง 2 คอลัมน์ (กราฟ + เมนูขายดี)
+   ✅ เปลี่ยนจาก max-width:700px เป็น min-width:700px
+   (Mobile-first: เริ่มจาก 1 คอลัมน์ แล้วค่อยขยาย)
+   ============================================================ */
 .section-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: 1fr; /* มือถือ: 1 คอลัมน์ */
+  gap: 12px; margin-bottom: 16px;
 }
-@media (max-width: 700px) {
-  .section-grid { grid-template-columns: 1fr; }
+@media (min-width: 700px) {
+  .section-grid { grid-template-columns: 1fr 1fr; } /* desktop: 2 คอลัมน์ */
 }
 
 .section-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
   animation: fadeUp 0.5s ease both;
 }
 .section-title {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
   font-family: 'Prompt', sans-serif;
-  font-size: 0.9rem; font-weight: 600;
-  color: var(--accent);
-  display: flex; align-items: center; gap: 8px;
+  font-size: 0.88rem; font-weight: 600;
+  color: var(--accent); display: flex; align-items: center; gap: 8px;
 }
-.section-body { padding: 14px 18px; }
+.section-body { padding: 12px 16px; }
 
-/* HOURLY CHART */
+/* ============================================================
+   HOURLY CHART — กราฟแท่งยอดขายรายชั่วโมง
+   ============================================================ */
 .chart-wrap {
   display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 120px;
-  padding: 0 4px;
+  align-items: flex-end; /* ทุก bar เริ่มจากด้านล่าง */
+  gap: 4px; height: 110px; padding: 0 2px;
 }
 .bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-  justify-content: flex-end;
+  flex: 1; /* แต่ละ column กว้างเท่ากัน */
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  height: 100%; justify-content: flex-end;
 }
 .bar {
   width: 100%;
-  background: rgba(232,93,48,0.3);
-  border-radius: 4px 4px 0 0;
-  min-height: 2px;
+  background: rgba(232,93,48,0.25); /* สีส้มโปร่งแสง */
+  border-radius: 3px 3px 0 0; /* โค้งแค่มุมบน */
+  min-height: 2px; /* ให้เห็นแม้ยอดเป็นศูนย์ */
+  /* cubic-bezier(0.34,1.56,0.64,1) = animation เด้งนิดหน่อยตอนโหลด */
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  position: relative;
-  cursor: pointer;
+  position: relative; cursor: pointer;
 }
-.bar:hover { background: var(--accent); }
-.bar-tooltip {
-  display: none;
-  position: absolute;
-  bottom: 100%; left: 50%;
-  transform: translateX(-50%);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 0.7rem;
-  white-space: nowrap;
-  color: var(--text);
-  pointer-events: none;
-  margin-bottom: 4px;
-  z-index: 10;
-}
-.bar:hover .bar-tooltip { display: block; }
-.bar-label {
-  font-size: 0.6rem;
-  color: var(--dim);
-  white-space: nowrap;
-}
+.bar:hover { background: var(--accent); } /* hover → สีส้มเต็ม */
 
-/* TOP MENU */
+/* tooltip แสดงยอดเงินเมื่อ hover */
+.bar-tooltip {
+  display: none; /* ซ่อนไว้ก่อน */
+  position: absolute; bottom: 100%; left: 50%;
+  transform: translateX(-50%); /* จัดกึ่งกลาง */
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 7px;
+  font-size: 0.65rem; white-space: nowrap; color: var(--text);
+  pointer-events: none; /* ไม่รับ mouse event ป้องกัน tooltip กระพริบ */
+  margin-bottom: 3px; z-index: 10;
+}
+.bar:hover .bar-tooltip { display: block; } /* แสดงเมื่อ hover bar */
+.bar-label { font-size: 0.55rem; color: var(--dim); white-space: nowrap; }
+
+/* ============================================================
+   ✅ ใหม่: MONTHLY CHART — กราฟแท่งยอดขายรายวันในเดือน
+   ============================================================ */
+.month-chart-wrap {
+  display: flex; align-items: flex-end;
+  gap: 4px; height: 120px; padding: 0 2px;
+  overflow-x: auto; /* scroll แนวนอนได้ถ้าวันเยอะ */
+}
+.month-bar-col {
+  min-width: 24px; flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  height: 100%; justify-content: flex-end;
+}
+.month-bar {
+  width: 100%;
+  background: rgba(88,166,255,0.25); /* สีฟ้าโปร่งแสง (ต่างจากรายชั่วโมงที่เป็นสีส้ม) */
+  border-radius: 3px 3px 0 0; min-height: 2px;
+  transition: all 0.6s ease;
+  position: relative; cursor: pointer;
+}
+/* วันนี้ — สีส้มเพื่อ highlight */
+.month-bar.today { background: rgba(232,93,48,0.4); }
+.month-bar:hover       { background: var(--blue); }
+.month-bar.today:hover { background: var(--accent); }
+/* tooltip เหมือนกับ hourly chart */
+.month-bar-tooltip {
+  display: none; position: absolute; bottom: 100%; left: 50%;
+  transform: translateX(-50%);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 7px;
+  font-size: 0.65rem; white-space: nowrap; color: var(--text);
+  pointer-events: none; margin-bottom: 3px; z-index: 10;
+}
+.month-bar:hover .month-bar-tooltip { display: block; }
+.month-bar-label { font-size: 0.55rem; color: var(--dim); white-space: nowrap; }
+
+/* ============================================================
+   TOP MENU — รายการเมนูขายดี Top 5
+   ============================================================ */
 .menu-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  gap: 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0; border-bottom: 1px solid var(--border); gap: 8px;
 }
 .menu-row:last-child { border-bottom: none; }
 .menu-rank {
-  font-family: 'Prompt', sans-serif;
-  font-size: 0.8rem; font-weight: 700;
-  color: var(--dim);
-  width: 20px; flex-shrink: 0;
+  font-family: 'Prompt', sans-serif; font-size: 0.78rem; font-weight: 700;
+  color: var(--dim); width: 18px; flex-shrink: 0;
 }
+/* สีเหรียญรางวัล */
 .menu-rank.gold   { color: var(--gold); }
 .menu-rank.silver { color: #8b9db5; }
 .menu-rank.bronze { color: #cd7f32; }
-.menu-name { flex: 1; font-size: 0.85rem; color: var(--text); }
-.menu-bar-wrap {
-  width: 80px;
-  background: var(--surface2);
-  border-radius: 4px;
-  height: 6px;
-  overflow: hidden;
+/* ชื่อเมนู — ตัดให้พอดีด้วย ellipsis เมื่อยาวเกิน */
+.menu-name {
+  flex: 1; font-size: 0.82rem; color: var(--text);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.menu-bar-fill {
-  height: 100%;
-  background: var(--green);
-  border-radius: 4px;
-  transition: width 0.8s ease;
-}
-.menu-count {
-  font-size: 0.78rem; color: var(--muted);
-  min-width: 40px; text-align: right;
-}
+/* แถบ progress bar แสดงสัดส่วน */
+.menu-bar-wrap { width: 60px; background: var(--surface2); border-radius: 4px; height: 5px; overflow: hidden; flex-shrink: 0; }
+.menu-bar-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width 0.8s ease; }
+.menu-count { font-size: 0.72rem; color: var(--muted); min-width: 36px; text-align: right; }
 
-/* RECENT BILLS */
+/* ============================================================
+   RECENT BILLS — รายการบิลล่าสุด
+   ============================================================ */
 .bill-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  gap: 10px;
-  font-size: 0.82rem;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  gap: 8px; font-size: 0.78rem;
 }
 .bill-row:last-child { border-bottom: none; }
-.bill-time { color: var(--muted); min-width: 45px; }
-.bill-table { color: var(--text); flex: 1; }
-.bill-amount {
-  font-family: 'Prompt', sans-serif;
-  font-weight: 700; color: var(--gold);
-}
+.bill-time  { color: var(--muted); min-width: 40px; flex-shrink: 0; }
+/* ✅ ใหม่: เพิ่ม ellipsis เพื่อตัดชื่อโต๊ะที่ยาวเกินบนมือถือ */
+.bill-table { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bill-amount { font-family: 'Prompt', sans-serif; font-weight: 700; color: var(--gold); flex-shrink: 0; }
 .bill-method {
-  font-size: 0.72rem;
-  padding: 2px 8px;
-  border-radius: 10px;
-  min-width: 60px; text-align: center;
+  font-size: 0.65rem; padding: 2px 6px; border-radius: 8px;
+  min-width: 50px; text-align: center; flex-shrink: 0;
 }
-.bill-method.cash {
-  background: rgba(63,185,80,0.12);
-  color: var(--green);
-  border: 1px solid rgba(63,185,80,0.3);
-}
-.bill-method.qr {
-  background: rgba(88,166,255,0.12);
-  color: var(--blue);
-  border: 1px solid rgba(88,166,255,0.3);
-}
+.bill-method.cash { background: rgba(63,185,80,0.12); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+.bill-method.qr   { background: rgba(88,166,255,0.12); color: var(--blue);  border: 1px solid rgba(88,166,255,0.3); }
 
-/* LOADING / EMPTY */
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
+/* ============================================================
+   LOADING / EMPTY STATES
+   ============================================================ */
+.loading { text-align: center; padding: 32px; color: var(--muted); font-size: 0.82rem; }
 .loading .spin {
-  display: inline-block;
-  font-size: 2rem;
-  animation: spin 1.5s linear infinite;
-  margin-bottom: 10px;
+  display: inline-block; font-size: 1.8rem;
+  animation: spin 1.5s linear infinite; /* หมุนตลอดเวลา */
+  margin-bottom: 8px;
 }
-.empty {
-  text-align: center;
-  padding: 30px;
-  color: var(--dim);
-  font-size: 0.82rem;
-}
+.empty { text-align: center; padding: 24px; color: var(--dim); font-size: 0.78rem; }
 
-/* ANIMATIONS */
+/* ============================================================
+   ✅ ใหม่: SECTION VISIBILITY — ซ่อน/แสดง section ตาม tab
+   .daily-section และ .monthly-section ซ่อนไว้ก่อน
+   เมื่อมี class "active" จึงแสดง
+   ============================================================ */
+.daily-section   { display: none; }
+.monthly-section { display: none; }
+.daily-section.active   { display: block; }
+.monthly-section.active { display: block; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+/* element เลื่อนขึ้นมาพร้อม fade in ตอนโหลด */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* หมุน 360° — ใช้กับ loading spinner */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
 </style>
 </head>
 <body>
 
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
 <header>
   <div class="header-left">
     <div class="header-logo">🍲 Koiii POS</div>
     <span class="header-badge">📊 Dashboard</span>
   </div>
   <div class="header-right">
+    <!-- ข้อความบอกเวลาล่าสุดที่โหลดข้อมูล JavaScript อัปเดตตรงนี้ -->
     <span class="last-update" id="lastUpdate"></span>
     <a href="index.html" class="btn-back">← กลับ POS</a>
   </div>
@@ -359,244 +448,576 @@ main { padding: 24px; max-width: 1100px; margin: 0 auto; }
 
 <main>
 
-  <!-- DATE FILTER -->
-  <div class="date-filter">
-    <label>ดูข้อมูลวันที่:</label>
-    <input type="date" class="date-input" id="filterDate">
-    <button class="btn-today" onclick="setToday()">วันนี้</button>
-    <button class="btn-filter" onclick="loadData()">🔍 ดูข้อมูล</button>
+  <!-- ============================================================
+       ✅ ใหม่: VIEW TABS — สลับระหว่างรายวัน/รายเดือน
+       onclick="switchView('daily')" → เรียก JavaScript เพื่อสลับ
+       ============================================================ -->
+  <div class="view-tabs">
+    <button class="view-tab active" id="tabDaily"   onclick="switchView('daily')">📅 รายวัน</button>
+    <button class="view-tab"        id="tabMonthly" onclick="switchView('monthly')">📆 รายเดือน</button>
   </div>
 
-  <!-- STAT CARDS -->
-  <div class="stat-grid">
-    <div class="stat-card revenue">
-      <div class="stat-icon">💰</div>
-      <div class="stat-label">ยอดขายรวม</div>
-      <div class="stat-value accent" id="statRevenue">—</div>
-      <div class="stat-sub" id="statRevenueSub"></div>
-    </div>
-    <div class="stat-card bills">
-      <div class="stat-icon">🧾</div>
-      <div class="stat-label">จำนวนบิล</div>
-      <div class="stat-value blue" id="statBills">—</div>
-      <div class="stat-sub" id="statBillsSub"></div>
-    </div>
-    <div class="stat-card avg">
-      <div class="stat-icon">📈</div>
-      <div class="stat-label">เฉลี่ยต่อบิล</div>
-      <div class="stat-value gold" id="statAvg">—</div>
-      <div class="stat-sub"></div>
-    </div>
-    <div class="stat-card topitem">
-      <div class="stat-icon">🏆</div>
-      <div class="stat-label">เมนูขายดีสุด</div>
-      <div class="stat-value green" id="statTopItem" style="font-size:1rem;line-height:1.4">—</div>
-      <div class="stat-sub" id="statTopItemSub"></div>
-    </div>
-  </div>
+  <!-- ============================================================
+       DAILY SECTION — แสดงเมื่อกด "รายวัน"
+       class "active" ทำให้แสดง (CSS: .daily-section.active { display:block })
+       ============================================================ -->
+  <div class="daily-section active" id="dailySection">
 
-  <!-- CHART + TOP MENU -->
-  <div class="section-grid">
+    <!-- DATE FILTER -->
+    <div class="date-filter">
+      <label>ดูข้อมูลวันที่:</label>
+      <!-- type="date" = input เลือกวันที่ → JavaScript อ่านค่าแล้วแปลงเป็น Thai date -->
+      <input type="date" class="date-input" id="filterDate">
+      <!-- กด "วันนี้" → เรียก setToday() ใส่วันที่ปัจจุบัน -->
+      <button class="btn-today" onclick="setToday()">วันนี้</button>
+      <button class="btn-filter" onclick="loadDailyData()">🔍 ดูข้อมูล</button>
+    </div>
 
-    <!-- ยอดขายรายชั่วโมง -->
-    <div class="section-card">
-      <div class="section-title">⏰ ยอดขายรายชั่วโมง</div>
-      <div class="section-body">
-        <div class="chart-wrap" id="hourlyChart">
+    <!-- STAT CARDS — 4 การ์ดตัวเลขสรุปรายวัน -->
+    <div class="stat-grid">
+      <!-- ยอดขายรวม — id="statRevenue" JavaScript จะเขียนค่าลงที่นี่ -->
+      <div class="stat-card revenue">
+        <div class="stat-icon">💰</div>
+        <div class="stat-label">ยอดขายรวม</div>
+        <div class="stat-value accent" id="statRevenue">—</div>
+        <div class="stat-sub" id="statRevenueSub"></div>
+      </div>
+      <!-- จำนวนบิล -->
+      <div class="stat-card bills">
+        <div class="stat-icon">🧾</div>
+        <div class="stat-label">จำนวนบิล</div>
+        <div class="stat-value blue" id="statBills">—</div>
+        <!-- sub แสดงจำนวนเงินสด vs โอน -->
+        <div class="stat-sub" id="statBillsSub"></div>
+      </div>
+      <!-- เฉลี่ยต่อบิล -->
+      <div class="stat-card avg">
+        <div class="stat-icon">📈</div>
+        <div class="stat-label">เฉลี่ยต่อบิล</div>
+        <div class="stat-value gold" id="statAvg">—</div>
+      </div>
+      <!-- เมนูขายดีสุด -->
+      <div class="stat-card topitem">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-label">เมนูขายดีสุด</div>
+        <div class="stat-value green" id="statTopItem" style="font-size:0.95rem;line-height:1.4">—</div>
+        <div class="stat-sub" id="statTopItemSub"></div>
+      </div>
+    </div>
+
+    <!-- ✅ ใหม่: BREAKDOWN CARDS — แยกประเภท -->
+    <div class="breakdown-grid">
+      <!-- ทานที่ร้าน -->
+      <div class="breakdown-card">
+        <div class="bd-icon">🍽️</div>
+        <div class="bd-label">ทานที่ร้าน</div>
+        <div class="bd-value dine" id="bdDineRevenue">—</div>
+        <div class="bd-sub" id="bdDineBills"></div>
+      </div>
+      <!-- สั่งกลับบ้าน -->
+      <div class="breakdown-card">
+        <div class="bd-icon">🥡</div>
+        <div class="bd-label">สั่งกลับบ้าน</div>
+        <div class="bd-value takeaway" id="bdTakeRevenue">—</div>
+        <div class="bd-sub" id="bdTakeBills"></div>
+      </div>
+      <!-- ✅ ส่วนลด — placeholder รอฟีเจอร์ในอนาคต
+           style="grid-column:span 2" = ขยายเต็ม 2 คอลัมน์บนมือถือ
+           บน desktop มี 3 คอลัมน์ เลยไม่ต้อง span -->
+      <!-- discount-card class จัดการ span ผ่าน CSS ไม่ใช้ inline style
+           เพราะ inline style override @media ไม่ได้ -->
+      <div class="breakdown-card discount-card" id="discountCardDaily">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:5px;">
+          <span style="font-size:1.4rem">🏷️</span>
+          <span class="bd-label" style="margin:0">ส่วนลดรวม</span>
+          <span class="bd-tag">เร็วๆ นี้</span>
+        </div>
+        <div class="bd-value discount">฿0</div>
+        <div class="bd-sub" style="color:var(--dim)">ฟีเจอร์ส่วนลดจะมาในอนาคต</div>
+      </div>
+    </div>
+
+    <!-- CHART + TOP MENU — วางเรียงกัน 2 คอลัมน์บน desktop -->
+    <div class="section-grid">
+      <!-- กราฟแท่งรายชั่วโมง -->
+      <div class="section-card">
+        <div class="section-title">⏰ ยอดขายรายชั่วโมง</div>
+        <div class="section-body">
+          <!-- JavaScript จะสร้าง bar chart ใส่ตรงนี้ -->
+          <div class="chart-wrap" id="hourlyChart">
+            <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
+          </div>
+        </div>
+      </div>
+      <!-- เมนูขายดี Top 5 -->
+      <div class="section-card">
+        <div class="section-title">🥇 เมนูขายดี Top 5</div>
+        <div class="section-body" id="topMenuList">
           <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
         </div>
       </div>
     </div>
 
-    <!-- เมนูขายดี -->
-    <div class="section-card">
-      <div class="section-title">🥇 เมนูขายดี Top 5</div>
-      <div class="section-body" id="topMenuList">
+    <!-- รายการบิลล่าสุด -->
+    <div class="section-card" style="margin-bottom:20px">
+      <div class="section-title">📋 รายการบิลล่าสุด</div>
+      <div class="section-body" id="recentBills">
         <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
       </div>
     </div>
 
-  </div>
+  </div><!-- /dailySection -->
 
-  <!-- รายการบิลล่าสุด -->
-  <div class="section-card" style="margin-bottom:24px">
-    <div class="section-title">📋 รายการบิลล่าสุด</div>
-    <div class="section-body" id="recentBills">
-      <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
+  <!-- ============================================================
+       ✅ ใหม่: MONTHLY SECTION — แสดงเมื่อกด "รายเดือน"
+       ============================================================ -->
+  <div class="monthly-section" id="monthlySection">
+
+    <!-- MONTH FILTER — type="month" เลือกได้แค่เดือน/ปี -->
+    <div class="date-filter">
+      <label>เดือน:</label>
+      <input type="month" class="date-input" id="filterMonth" style="max-width:180px">
+      <button class="btn-filter" onclick="loadMonthlyData()">🔍 ดูข้อมูล</button>
     </div>
-  </div>
+
+    <!-- MONTHLY STAT CARDS -->
+    <div class="stat-grid">
+      <div class="stat-card revenue">
+        <div class="stat-icon">💰</div>
+        <div class="stat-label">ยอดขายรวมเดือนนี้</div>
+        <div class="stat-value accent" id="mStatRevenue">—</div>
+        <div class="stat-sub" id="mStatSub"></div>
+      </div>
+      <div class="stat-card bills">
+        <div class="stat-icon">🧾</div>
+        <div class="stat-label">จำนวนบิลทั้งเดือน</div>
+        <div class="stat-value blue" id="mStatBills">—</div>
+      </div>
+      <!-- ✅ รายเดือน: เฉลี่ยต่อวัน (ไม่ใช่ต่อบิล เพราะดูภาพรวมรายเดือน) -->
+      <div class="stat-card avg">
+        <div class="stat-icon">📊</div>
+        <div class="stat-label">เฉลี่ยยอดขาย/วัน</div>
+        <div class="stat-value gold" id="mStatAvgDay">—</div>
+        <div class="stat-sub" id="mStatAvgSub"></div>
+      </div>
+      <div class="stat-card topitem">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-label">เมนูขายดีสุด (เดือน)</div>
+        <div class="stat-value green" id="mStatTopItem" style="font-size:0.95rem;line-height:1.4">—</div>
+        <div class="stat-sub" id="mStatTopItemSub"></div>
+      </div>
+    </div>
+
+    <!-- MONTHLY BREAKDOWN -->
+    <div class="breakdown-grid">
+      <div class="breakdown-card">
+        <div class="bd-icon">🍽️</div>
+        <div class="bd-label">ทานที่ร้าน (เดือน)</div>
+        <div class="bd-value dine" id="mBdDineRevenue">—</div>
+        <div class="bd-sub" id="mBdDineBills"></div>
+      </div>
+      <div class="breakdown-card">
+        <div class="bd-icon">🥡</div>
+        <div class="bd-label">กลับบ้าน (เดือน)</div>
+        <div class="bd-value takeaway" id="mBdTakeRevenue">—</div>
+        <div class="bd-sub" id="mBdTakeBills"></div>
+      </div>
+      <div class="breakdown-card discount-card" id="discountCardMonthly">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:5px;">
+          <span style="font-size:1.4rem">🏷️</span>
+          <span class="bd-label" style="margin:0">ส่วนลดรวม (เดือน)</span>
+          <span class="bd-tag">เร็วๆ นี้</span>
+        </div>
+        <div class="bd-value discount">฿0</div>
+        <div class="bd-sub" style="color:var(--dim)">ฟีเจอร์ส่วนลดจะมาในอนาคต</div>
+      </div>
+    </div>
+
+    <!-- ✅ ใหม่: กราฟแท่งยอดขายรายวันในเดือน -->
+    <div class="section-card" style="margin-bottom:14px">
+      <div class="section-title">📊 ยอดขายรายวันในเดือนนี้</div>
+      <div class="section-body">
+        <div class="month-chart-wrap" id="monthlyChart">
+          <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- เมนูขายดี Top 5 (รายเดือน) -->
+    <div class="section-card" style="margin-bottom:20px">
+      <div class="section-title">🥇 เมนูขายดี Top 5 (เดือนนี้)</div>
+      <div class="section-body" id="mTopMenuList">
+        <div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>
+      </div>
+    </div>
+
+  </div><!-- /monthlySection -->
 
 </main>
 
 <script>
 // ============================================================
-// ตั้งค่า URL ของ Google Apps Script
-// (ใช้ URL เดียวกับที่ POS ส่งข้อมูลไป)
+// CONFIG — URL ของ Google Apps Script
+// เชื่อมต่อกับ Google Sheets เพื่อดึงข้อมูลออเดอร์
 // ============================================================
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
 
 // ============================================================
-// ตั้งค่าวันที่ default เป็นวันนี้
+// ✅ ใหม่: switchView — สลับระหว่าง "รายวัน" และ "รายเดือน"
+// v = 'daily' หรือ 'monthly'
 // ============================================================
-function setToday() {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth()+1).padStart(2,'0');
-  const dd = String(today.getDate()).padStart(2,'0');
-  document.getElementById('filterDate').value = `${yyyy}-${mm}-${dd}`;
+function switchView(v) {
+  // classList.toggle(class, condition) = ใส่ class ถ้า condition เป็น true, ลบถ้าเป็น false
+  document.getElementById('dailySection').classList.toggle('active', v === 'daily');
+  document.getElementById('monthlySection').classList.toggle('active', v === 'monthly');
+  document.getElementById('tabDaily').classList.toggle('active', v === 'daily');
+  document.getElementById('tabMonthly').classList.toggle('active', v === 'monthly');
+
+  // โหลดข้อมูลรายเดือนทันทีเมื่อสลับไป (ถ้ายังไม่ได้โหลด)
+  if (v === 'monthly') loadMonthlyData();
 }
 
 // ============================================================
-// แปลงวันที่จาก input (2026-03-18) เป็นรูปแบบ Sheets (18/03/2569)
+// setToday — ใส่วันที่ปัจจุบันใน input
+// ============================================================
+function setToday() {
+  const t = new Date();
+  // padStart(2,'0') = ใส่ 0 นำหน้าถ้าตัวเลขมีแค่ 1 หลัก เช่น 3 → "03"
+  document.getElementById('filterDate').value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+}
+
+// ============================================================
+// ✅ ใหม่: setCurrentMonth — ใส่เดือนปัจจุบันใน input
+// ============================================================
+function setCurrentMonth() {
+  const t = new Date();
+  document.getElementById('filterMonth').value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+}
+
+// ============================================================
+// toThaiDate — แปลงวันที่จาก input (2026-03-18) → Sheets (18/03/2569)
+// เพราะ Sheets เก็บวันที่เป็น พ.ศ. ไม่ใช่ ค.ศ.
 // ============================================================
 function toThaiDate(inputDate) {
-  const [y, m, d] = inputDate.split('-');
-  const thaiYear = parseInt(y) + 543;
+  const [y, m, d]  = inputDate.split('-');
+  const thaiYear   = parseInt(y) + 543; // แปลง ค.ศ. → พ.ศ.
   return `${d}/${m}/${thaiYear}`;
 }
 
 // ============================================================
-// โหลดข้อมูลจาก Google Sheets ผ่าน Apps Script
+// loadDailyData — โหลดข้อมูลยอดขายรายวัน
 // ============================================================
-async function loadData() {
+async function loadDailyData() {
   const dateVal = document.getElementById('filterDate').value;
   if (!dateVal) { alert('กรุณาเลือกวันที่ก่อนครับ'); return; }
 
-  const thaiDate = toThaiDate(dateVal);
-
-  // แสดง loading
-  document.getElementById('statRevenue').textContent = '...';
-  document.getElementById('statBills').textContent = '...';
-  document.getElementById('statAvg').textContent = '...';
-  document.getElementById('statTopItem').textContent = '...';
-  document.getElementById('hourlyChart').innerHTML = '<div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>';
-  document.getElementById('topMenuList').innerHTML = '<div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>';
-  document.getElementById('recentBills').innerHTML = '<div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>';
+  // แสดง loading ทุกที่ก่อน
+  setDailyLoading();
 
   try {
-    const res = await fetch(`${SCRIPT_URL}?date=${encodeURIComponent(thaiDate)}`);
-    const data = await res.json();
-    renderDashboard(data, dateVal);
-    document.getElementById('lastUpdate').textContent = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+    // fetch ส่ง HTTP GET ไปยัง Apps Script พร้อม parameter ?date=...
+    // encodeURIComponent แปลง / เป็น %2F เพื่อให้ URL ถูกต้อง
+    const res  = await fetch(`${SCRIPT_URL}?date=${encodeURIComponent(toThaiDate(dateVal))}`);
+    const data = await res.json(); // แปลง JSON string → JavaScript array
+
+    renderDaily(data, dateVal); // วาดข้อมูลทั้งหมด
+
+    // อัปเดตเวลาที่โหลดล่าสุด
+    document.getElementById('lastUpdate').textContent =
+      'อัปเดต ' + new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
   } catch(err) {
     console.error(err);
-    document.getElementById('hourlyChart').innerHTML = '<div class="empty">❌ โหลดข้อมูลไม่ได้<br>ตรวจสอบการเชื่อมต่อ</div>';
+    document.getElementById('hourlyChart').innerHTML =
+      '<div class="empty">❌ โหลดข้อมูลไม่ได้<br>ตรวจสอบการเชื่อมต่อ</div>';
+  }
+}
+
+// แสดง loading spinner ทุก element ของ daily section
+function setDailyLoading() {
+  ['statRevenue','statBills','statAvg','statTopItem',
+   'bdDineRevenue','bdTakeRevenue'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '...';
+  });
+  const spin = '<div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>';
+  document.getElementById('hourlyChart').innerHTML = spin;
+  document.getElementById('topMenuList').innerHTML = spin;
+  document.getElementById('recentBills').innerHTML = spin;
+}
+
+// ============================================================
+// renderDaily — วาดข้อมูลทั้งหมดของ section รายวัน
+// rows = array ของออเดอร์ที่ได้จาก Sheets
+// dateVal = วันที่ในรูปแบบ "2026-03-21"
+// ============================================================
+function renderDaily(rows, dateVal) {
+  // ถ้าไม่มีข้อมูล → แสดง 0 และข้อความว่าง
+  if (!rows || rows.length === 0) {
+    document.getElementById('statRevenue').textContent   = '฿0';
+    document.getElementById('statBills').textContent     = '0 บิล';
+    document.getElementById('statAvg').textContent       = '฿0';
+    document.getElementById('statTopItem').textContent   = '—';
+    document.getElementById('bdDineRevenue').textContent = '฿0';
+    document.getElementById('bdDineBills').textContent   = '0 บิล';
+    document.getElementById('bdTakeRevenue').textContent = '฿0';
+    document.getElementById('bdTakeBills').textContent   = '0 บิล';
+    document.getElementById('hourlyChart').innerHTML     = '<div class="empty">ไม่มีข้อมูลวันนี้</div>';
+    document.getElementById('topMenuList').innerHTML     = '<div class="empty">ไม่มีข้อมูล</div>';
+    document.getElementById('recentBills').innerHTML     = '<div class="empty">ไม่มีรายการ</div>';
+    return;
+  }
+
+  // ── คำนวณตัวเลขหลัก ──
+  // reduce: วนลูป array แล้วสะสมค่า s = sum, r = row ปัจจุบัน
+  const totalRevenue = rows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  const totalBills   = rows.length;
+  const avgBill      = totalBills > 0 ? Math.round(totalRevenue / totalBills) : 0;
+
+  // toLocaleString() แปลงตัวเลขให้มี comma เช่น 1000 → "1,000"
+  document.getElementById('statRevenue').textContent    = '฿' + totalRevenue.toLocaleString();
+  document.getElementById('statRevenueSub').textContent = 'วันที่ ' + dateVal.split('-').reverse().join('/');
+  document.getElementById('statBills').textContent      = totalBills + ' บิล';
+  const cashCount = rows.filter(r => r.payMethod === 'เงินสด').length;
+  const qrCount   = rows.filter(r => r.payMethod === 'โอน/QR').length;
+  document.getElementById('statBillsSub').textContent   = `💵 ${cashCount}  📱 ${qrCount}`;
+  document.getElementById('statAvg').textContent        = '฿' + avgBill.toLocaleString();
+
+  // ── ✅ ใหม่: Breakdown ทานที่ร้าน vs กลับบ้าน ──
+  // filter กรองเฉพาะ row ที่ตรงกับ orderType
+  const dineRows  = rows.filter(r => r.orderType === 'ทานที่ร้าน');
+  const takeRows  = rows.filter(r => r.orderType === 'กลับบ้าน');
+  const dineTotal = dineRows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  const takeTotal = takeRows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  document.getElementById('bdDineRevenue').textContent = '฿' + dineTotal.toLocaleString();
+  document.getElementById('bdDineBills').textContent   = dineRows.length + ' บิล';
+  document.getElementById('bdTakeRevenue').textContent = '฿' + takeTotal.toLocaleString();
+  document.getElementById('bdTakeBills').textContent   = takeRows.length + ' บิล';
+
+  // ── นับจำนวนสินค้า ──
+  const itemCount = countItems(rows);
+  const sorted    = Object.entries(itemCount).sort((a, b) => b[1] - a[1]);
+  if (sorted.length > 0) {
+    document.getElementById('statTopItem').textContent    = sorted[0][0];
+    document.getElementById('statTopItemSub').textContent = sorted[0][1] + ' ชิ้น/จาน';
+  }
+  renderTopMenu('topMenuList', sorted.slice(0, 5));
+
+  // ── กราฟรายชั่วโมง ──
+  const hourly = {};
+  for (let h = 9; h <= 22; h++) hourly[h] = 0; // เริ่มต้นทุก hour เป็น 0
+  rows.forEach(r => {
+    if (!r.time) return;
+    const h = parseInt(r.time.split(':')[0]); // ดึงชั่วโมงจาก "18:30"
+    if (hourly[h] !== undefined) hourly[h] += parseFloat(r.total) || 0;
+  });
+
+  const maxVal = Math.max(...Object.values(hourly), 1);
+  // Math.max(...array) = หาค่าสูงสุด, ใส่ 1 ไว้เผื่อทุกชั่วโมงเป็น 0 (ป้องกัน div by zero)
+  document.getElementById('hourlyChart').innerHTML = Object.keys(hourly).map(h => `
+    <div class="bar-col">
+      <div class="bar" style="height:${Math.max(3, Math.round(hourly[h] / maxVal * 100))}px">
+        <div class="bar-tooltip">฿${hourly[h].toLocaleString()}</div>
+      </div>
+      <div class="bar-label">${h}</div>
+    </div>`).join('');
+  // Math.max(3,...) = ความสูงขั้นต่ำ 3px ให้เห็นแม้ยอดเป็นศูนย์
+
+  // ── รายการบิลล่าสุด ──
+  // [...rows] = copy array ก่อน ไม่แก้ต้นฉบับ
+  // .reverse() = เรียงจากล่าสุดไปเก่าสุด
+  // .slice(0,10) = เอาแค่ 10 รายการ
+  const recent = [...rows].reverse().slice(0, 10);
+  document.getElementById('recentBills').innerHTML = recent.map(r => `
+    <div class="bill-row">
+      <span class="bill-time">${r.time || '—'}</span>
+      <span class="bill-table">${r.table || '—'}</span>
+      <span class="bill-amount">฿${parseFloat(r.total || 0).toLocaleString()}</span>
+      <span class="bill-method ${r.payMethod === 'เงินสด' ? 'cash' : 'qr'}">${r.payMethod || '—'}</span>
+    </div>`).join('');
+}
+
+// ============================================================
+// ✅ ใหม่: loadMonthlyData — โหลดข้อมูลยอดขายรายเดือน
+// ต้องดึงข้อมูลทีละวันทุกวันในเดือน แล้วรวมกัน
+// ============================================================
+async function loadMonthlyData() {
+  const monthVal = document.getElementById('filterMonth').value;
+  if (!monthVal) { alert('กรุณาเลือกเดือนก่อนครับ'); return; }
+
+  // แสดง loading
+  const spin = '<div class="loading"><span class="spin">🍲</span><br>กำลังโหลด...</div>';
+  document.getElementById('monthlyChart').innerHTML = spin;
+  document.getElementById('mTopMenuList').innerHTML = spin;
+  ['mStatRevenue','mStatBills','mStatAvgDay','mStatTopItem',
+   'mBdDineRevenue','mBdTakeRevenue'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '...';
+  });
+
+  const [year, month] = monthVal.split('-').map(Number);
+
+  // หาจำนวนวันในเดือนนั้น
+  // new Date(year, month, 0) = วันสุดท้ายของเดือน (0 = วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้)
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // สร้าง array ของ promises (request ทุกวันพร้อมกัน)
+  // แทนที่จะรอทีละวัน ส่งทุกวันพร้อมกันเลยเร็วกว่ามาก
+  const promises = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dd      = String(d).padStart(2, '0');
+    const mm      = String(month).padStart(2, '0');
+    const dateStr = `${dd}/${mm}/${year + 543}`; // แปลงเป็น Thai date โดยตรง
+    promises.push(
+      fetch(`${SCRIPT_URL}?date=${encodeURIComponent(dateStr)}`)
+        .then(r => r.json())
+        .then(data => ({ day: d, data: Array.isArray(data) ? data : [] }))
+        .catch(() => ({ day: d, data: [] })) // ถ้า error ให้ส่ง array ว่างแทน
+    );
+  }
+
+  try {
+    // Promise.all รอให้ทุก request เสร็จพร้อมกัน (ไม่ใช่ทีละอัน)
+    const results = await Promise.all(promises);
+    // flatMap = map แล้ว flat 1 ชั้น รวม array ทุกวันเป็น array เดียว
+    const allRows = results.flatMap(r => r.data);
+    renderMonthly(allRows, results, year, month);
+  } catch(err) {
+    console.error(err);
+    document.getElementById('monthlyChart').innerHTML = '<div class="empty">❌ โหลดข้อมูลไม่ได้</div>';
   }
 }
 
 // ============================================================
-// แสดงผลข้อมูลทั้งหมด
+// ✅ ใหม่: renderMonthly — วาดข้อมูลทั้งหมดของ section รายเดือน
+// allRows = ออเดอร์ทุกวันรวมกัน
+// dailyResults = array ของ {day, data} แต่ละวัน (สำหรับกราฟ)
 // ============================================================
-function renderDashboard(rows, dateVal) {
-  if (!rows || rows.length === 0) {
-    document.getElementById('statRevenue').textContent = '฿0';
-    document.getElementById('statBills').textContent = '0';
-    document.getElementById('statAvg').textContent = '฿0';
-    document.getElementById('statTopItem').textContent = '—';
-    document.getElementById('hourlyChart').innerHTML = '<div class="empty">ไม่มีข้อมูลวันนี้</div>';
-    document.getElementById('topMenuList').innerHTML = '<div class="empty">ไม่มีข้อมูล</div>';
-    document.getElementById('recentBills').innerHTML = '<div class="empty">ไม่มีรายการ</div>';
+function renderMonthly(allRows, dailyResults, year, month) {
+  const monthNames = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                      'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  if (!allRows || allRows.length === 0) {
+    ['mStatRevenue','mStatBills','mStatAvgDay','mStatTopItem',
+     'mBdDineRevenue','mBdTakeRevenue'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = '—';
+    });
+    document.getElementById('monthlyChart').innerHTML = '<div class="empty">ไม่มีข้อมูลเดือนนี้</div>';
+    document.getElementById('mTopMenuList').innerHTML = '<div class="empty">ไม่มีข้อมูล</div>';
     return;
   }
 
-  // --- คำนวณ stat cards ---
-  const totalRevenue = rows.reduce((s, r) => s + (parseFloat(r.total)||0), 0);
-  const totalBills = rows.length;
-  const avgBill = totalBills > 0 ? Math.round(totalRevenue / totalBills) : 0;
+  const total      = allRows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  const bills      = allRows.length;
+  // นับเฉพาะวันที่มีออเดอร์จริงๆ (ไม่นับวันหยุด)
+  const activeDays = dailyResults.filter(r => r.data && r.data.length > 0).length;
+  const avgDay     = activeDays > 0 ? Math.round(total / activeDays) : 0;
 
-  document.getElementById('statRevenue').textContent = '฿' + totalRevenue.toLocaleString();
-  document.getElementById('statRevenueSub').textContent = 'วันที่ ' + dateVal.split('-').reverse().join('/');
-  document.getElementById('statBills').textContent = totalBills + ' บิล';
-  const cashCount = rows.filter(r => r.payMethod === 'เงินสด').length;
-  const qrCount   = rows.filter(r => r.payMethod === 'โอน/QR').length;
-  document.getElementById('statBillsSub').textContent = `💵 ${cashCount}  📱 ${qrCount}`;
-  document.getElementById('statAvg').textContent = '฿' + avgBill.toLocaleString();
+  document.getElementById('mStatRevenue').textContent = '฿' + total.toLocaleString();
+  document.getElementById('mStatSub').textContent     = monthNames[month] + ' ' + year;
+  document.getElementById('mStatBills').textContent   = bills + ' บิล';
+  document.getElementById('mStatAvgDay').textContent  = '฿' + avgDay.toLocaleString();
+  document.getElementById('mStatAvgSub').textContent  = `จาก ${activeDays} วันที่มีออเดอร์`;
 
-  // --- เมนูขายดี ---
-  const itemCount = {};
+  // Breakdown
+  const dineRows  = allRows.filter(r => r.orderType === 'ทานที่ร้าน');
+  const takeRows  = allRows.filter(r => r.orderType === 'กลับบ้าน');
+  const dineTotal = dineRows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  const takeTotal = takeRows.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  document.getElementById('mBdDineRevenue').textContent = '฿' + dineTotal.toLocaleString();
+  document.getElementById('mBdDineBills').textContent   = dineRows.length + ' บิล';
+  document.getElementById('mBdTakeRevenue').textContent = '฿' + takeTotal.toLocaleString();
+  document.getElementById('mBdTakeBills').textContent   = takeRows.length + ' บิล';
+
+  // Top items รายเดือน
+  const itemCount = countItems(allRows);
+  const sorted    = Object.entries(itemCount).sort((a, b) => b[1] - a[1]);
+  if (sorted.length > 0) {
+    document.getElementById('mStatTopItem').textContent    = sorted[0][0];
+    document.getElementById('mStatTopItemSub').textContent = sorted[0][1] + ' ชิ้น/จาน';
+  }
+  renderTopMenu('mTopMenuList', sorted.slice(0, 5));
+
+  // กราฟรายวันในเดือน
+  const dailyTotals = dailyResults.map(r => ({
+    day:   r.day,
+    total: (r.data || []).reduce((s, row) => s + (parseFloat(row.total) || 0), 0),
+  }));
+  const maxDayVal = Math.max(...dailyTotals.map(d => d.total), 1);
+
+  // ตรวจสอบว่าเดือนที่เลือกคือเดือนปัจจุบันหรือเปล่า เพื่อ highlight วันนี้
+  const now          = new Date();
+  const isThisMonth  = month === now.getMonth() + 1 && year === now.getFullYear();
+  const todayDate    = now.getDate();
+
+  document.getElementById('monthlyChart').innerHTML = dailyTotals.map(d => `
+    <div class="month-bar-col">
+      <div class="month-bar ${isThisMonth && d.day === todayDate ? 'today' : ''}"
+           style="height:${Math.max(2, Math.round(d.total / maxDayVal * 100))}px">
+        <div class="month-bar-tooltip">${d.day}: ฿${d.total.toLocaleString()}</div>
+      </div>
+      <div class="month-bar-label">${d.day}</div>
+    </div>`).join('');
+}
+
+// ============================================================
+// countItems — นับจำนวนสินค้าแต่ละรายการจาก rows ทั้งหมด
+// เช่น { "เนื้อวัว": 5, "ผักบุ้ง": 3, ... }
+// ============================================================
+function countItems(rows) {
+  const map = {};
   rows.forEach(r => {
     if (!r.items) return;
-    // แยกชามด้วย " | " แล้วแยกรายการด้วย ", "
-    const bowls = r.items.split(' | ');
-    bowls.forEach(bowl => {
-      const items = bowl.replace(/^ชามที่\d+:\s*/, '').split(', ');
-      items.forEach(item => {
-        // ตัดชื่อสินค้าออกจาก "🥩 เนื้อวัว ฿99 x2 = ฿198"
-        const nameMatch = item.match(/^[^\s]*\s([^\฿]+)/);
-        if (nameMatch) {
-          const name = nameMatch[1].trim();
-          // ดึงจำนวนจาก "x2"
-          const qtyMatch = item.match(/x(\d+)/);
-          const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-          itemCount[name] = (itemCount[name] || 0) + qty;
+    // แยกชามด้วย " | " เช่น "ชามที่1: เนื้อ | ชามที่2: ผัก"
+    r.items.split(' | ').forEach(bowl => {
+      // ลบ "ชามที่1: " นำหน้า แล้วแยกรายการด้วย ", "
+      bowl.replace(/^ชามที่\d+:\s*/, '').split(', ').forEach(item => {
+        // regex จับชื่อสินค้า: ข้าม emoji (^[^\s]*) แล้วจับชื่อ ([^\฿]+)
+        const nm = item.match(/^[^\s]*\s([^\฿]+)/);
+        if (nm) {
+          const name = nm[1].trim();
+          // จับจำนวนจาก "x2" หรือ default เป็น 1
+          const qty  = parseInt((item.match(/x(\d+)/) || [, 1])[1]);
+          map[name]  = (map[name] || 0) + qty;
         }
       });
     });
   });
-
-  const sortedItems = Object.entries(itemCount).sort((a,b) => b[1]-a[1]);
-  if (sortedItems.length > 0) {
-    document.getElementById('statTopItem').textContent = sortedItems[0][0];
-    document.getElementById('statTopItemSub').textContent = sortedItems[0][1] + ' ชิ้น/จาน';
-  }
-
-  // Top 5
-  const maxCount = sortedItems[0] ? sortedItems[0][1] : 1;
-  const rankClass = ['gold','silver','bronze','',''];
-  const rankLabel = ['🥇','🥈','🥉','4','5'];
-  const top5 = sortedItems.slice(0,5);
-  if (top5.length === 0) {
-    document.getElementById('topMenuList').innerHTML = '<div class="empty">ไม่มีข้อมูล</div>';
-  } else {
-    document.getElementById('topMenuList').innerHTML = top5.map((item,i) => `
-      <div class="menu-row">
-        <span class="menu-rank ${rankClass[i]}">${rankLabel[i]}</span>
-        <span class="menu-name">${item[0]}</span>
-        <div class="menu-bar-wrap">
-          <div class="menu-bar-fill" style="width:${Math.round(item[1]/maxCount*100)}%"></div>
-        </div>
-        <span class="menu-count">${item[1]} ชิ้น</span>
-      </div>
-    `).join('');
-  }
-
-  // --- ยอดขายรายชั่วโมง ---
-  const hourly = {};
-  for (let h = 9; h <= 22; h++) hourly[h] = 0;
-  rows.forEach(r => {
-    if (!r.time) return;
-    const h = parseInt(r.time.split(':')[0]);
-    if (hourly[h] !== undefined) hourly[h] += parseFloat(r.total)||0;
-  });
-
-  const hours = Object.keys(hourly).map(Number);
-  const maxVal = Math.max(...Object.values(hourly), 1);
-  document.getElementById('hourlyChart').innerHTML = hours.map(h => `
-    <div class="bar-col">
-      <div class="bar" style="height:${Math.max(4, Math.round(hourly[h]/maxVal*100))}px">
-        <div class="bar-tooltip">฿${hourly[h].toLocaleString()}</div>
-      </div>
-      <div class="bar-label">${h}</div>
-    </div>
-  `).join('');
-
-  // --- รายการบิลล่าสุด ---
-  const recent = [...rows].reverse().slice(0, 10);
-  document.getElementById('recentBills').innerHTML = recent.map(r => `
-    <div class="bill-row">
-      <span class="bill-time">${r.time||'—'}</span>
-      <span class="bill-table">${r.table||'—'}</span>
-      <span class="bill-amount">฿${parseFloat(r.total||0).toLocaleString()}</span>
-      <span class="bill-method ${r.payMethod==='เงินสด'?'cash':'qr'}">${r.payMethod||'—'}</span>
-    </div>
-  `).join('');
+  return map;
 }
 
 // ============================================================
-// เริ่มต้น: ตั้งวันที่เป็นวันนี้แล้วโหลดเลย
+// renderTopMenu — วาดรายการ Top 5 เมนูขายดี
+// elId = id ของ element ที่จะวาดลงไป
+// sorted = array ของ [ชื่อเมนู, จำนวน] เรียงจากมากไปน้อย
 // ============================================================
-setToday();
-loadData();
+function renderTopMenu(elId, sorted) {
+  if (!sorted.length) {
+    document.getElementById(elId).innerHTML = '<div class="empty">ไม่มีข้อมูล</div>';
+    return;
+  }
+  const maxCount  = sorted[0][1]; // เอาของแรกเป็น 100%
+  const rankClass = ['gold', 'silver', 'bronze', '', '']; // CSS class สำหรับสี
+  const rankLabel = ['🥇', '🥈', '🥉', '4', '5'];
+  document.getElementById(elId).innerHTML = sorted.map((item, i) => `
+    <div class="menu-row">
+      <span class="menu-rank ${rankClass[i]}">${rankLabel[i]}</span>
+      <span class="menu-name">${item[0]}</span>
+      <div class="menu-bar-wrap">
+        <!-- width คำนวณเป็น % เทียบกับเมนูที่ขายได้มากที่สุด -->
+        <div class="menu-bar-fill" style="width:${Math.round(item[1] / maxCount * 100)}%"></div>
+      </div>
+      <span class="menu-count">${item[1]} ชิ้น</span>
+    </div>`).join('');
+}
+
+// ============================================================
+// INIT — เริ่มต้นเมื่อหน้าโหลดเสร็จ
+// ============================================================
+setToday();        // ใส่วันที่ปัจจุบันใน input รายวัน
+setCurrentMonth(); // ใส่เดือนปัจจุบันใน input รายเดือน
+loadDailyData();   // โหลดข้อมูลรายวันทันที
 </script>
 </body>
 </html>
