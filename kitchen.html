@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  kitchen.html — หน้าจอครัว (Kitchen Display System) v3      ║
+  ║                                                              ║
+  ║  ฟีเจอร์ทั้งหมด:                                             ║
+  ║  ✅ แสดงออเดอร์ real-time (poll ทุก 20 วินาที)              ║
+  ║  ✅ รวมออเดอร์ทุกชามจากโต๊ะเดียวกันในการ์ดเดียว             ║
+  ║  ✅ กด ✅ mark เสร็จแล้ว                                     ║
+  ║  ✅ เสียงแจ้งเตือน + ปุ่มเรียกซ้ำ 🔔                       ║
+  ║  ✅ ปริ้นอัตโนมัติ + ตั้งค่า paper size + Kiosk mode tip   ║
+  ║  ✅ รองรับมือถือ + ป้องกันหน้าจอดับ                          ║
+  ║                                                              ║
+  ║  แก้ไขตาม Gemini review v3:                                  ║
+  ║  🔧 Fix 1: Memory — ล้าง RAM อัตโนมัติเมื่อข้ามวัน          ║
+  ║  🔧 Fix 2: Time   — regex แทน split ป้องกัน format แปลกๆ   ║
+  ║  🔧 Fix 3: Parse  — regex จับชื่อสินค้าแม่นขึ้น (bug fixed) ║
+  ║  🔧 Fix 4: Print  — เพิ่มวิธีทำ Kiosk printing ใน UI       ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍳 Koiii Kitchen</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800;900&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   CSS VARIABLES
+   ============================================================ */
+:root {
+  --bg:       #0a0e13;
+  --surface:  #141920;
+  --surface2: #1c2330;
+  --border:   #2a3340;
+  --accent:   #e85d30;
+  --green:    #3fb950;
+  --yellow:   #f0a830;
+  --red:      #f85149;
+  --blue:     #58a6ff;
+  --purple:   #bc8cff;
+  --text:     #e6edf3;
+  --muted:    #7d8590;
+  --dim:      #3d4b5a;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Sarabun',sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; }
+
+/* ── HEADER ── */
+header {
+  background:var(--surface); border-bottom:2px solid var(--accent);
+  padding:0 14px; height:56px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  position:sticky; top:0; z-index:100;
+}
+.header-left  { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.header-right { display:flex; align-items:center; gap:8px; }
+.kitchen-logo { font-family:'Prompt',sans-serif; font-size:1rem; font-weight:900; color:var(--accent); }
+/* tabular-nums: ทำให้ตัวเลขทุกตัวกว้างเท่ากัน ป้องกัน layout กระตุกตอนวินาทีเปลี่ยน */
+.clock { font-family:'Prompt',sans-serif; font-size:1.1rem; font-weight:700; color:var(--text); letter-spacing:1px; font-variant-numeric:tabular-nums; }
+@media (max-width:480px) { .clock { font-size:0.9rem; } }
+
+/* dot สถานะ: เขียว=ปกติ, แดง=error, เหลือง=กำลังโหลด */
+.status-dot { width:9px; height:9px; border-radius:50%; background:var(--muted); transition:background 0.3s; flex-shrink:0; }
+.status-dot.ok      { background:var(--green); animation:pulseDot 2s ease-in-out infinite; }
+.status-dot.error   { background:var(--red); }
+.status-dot.loading { background:var(--yellow); }
+.status-text { font-size:0.68rem; color:var(--muted); white-space:nowrap; }
+
+/* badge จำนวนโต๊ะรออยู่ */
+.order-badge { font-family:'Prompt',sans-serif; font-size:0.7rem; font-weight:700; background:var(--accent); color:white; border-radius:20px; padding:2px 9px; display:none; flex-shrink:0; }
+.order-badge.show { display:inline-block; }
+
+.btn-back { font-size:0.72rem; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:4px 9px; text-decoration:none; transition:all 0.2s; white-space:nowrap; flex-shrink:0; }
+.btn-back:hover { color:var(--text); border-color:var(--accent); }
+
+/* ── TOOLBAR ── */
+.toolbar { display:flex; align-items:center; gap:6px; padding:8px 14px; background:var(--surface); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.toolbar-info { font-size:0.75rem; color:var(--muted); flex:1; min-width:100px; }
+.toolbar-info strong { color:var(--text); }
+.tb-btn { padding:5px 11px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.72rem; transition:all 0.2s; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+.tb-btn:hover          { border-color:var(--blue);   color:var(--blue); }
+.tb-btn.sound-on       { border-color:var(--yellow); color:var(--yellow); background:rgba(240,168,48,0.1); }
+.tb-btn.settings-open  { border-color:var(--purple); color:var(--purple); }
+
+/* ── SETTINGS PANEL — เปิด/ปิดด้วย .open class ── */
+.settings-panel { display:none; background:var(--surface); border-bottom:1px solid var(--border); padding:12px 14px; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+.settings-panel.open { display:flex; }
+.setting-group { display:flex; flex-direction:column; gap:6px; }
+.setting-label { font-size:0.68rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.paper-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.paper-btn { padding:5px 12px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.78rem; transition:all 0.2s; }
+.paper-btn:hover  { border-color:var(--purple); color:var(--purple); }
+/* active = paper size ที่เลือกอยู่ */
+.paper-btn.active { border-color:var(--purple); color:white; background:var(--purple); }
+.setting-tip { font-size:0.68rem; color:var(--dim); background:var(--surface2); border-radius:6px; padding:6px 10px; line-height:1.7; max-width:440px; }
+.setting-tip strong { color:var(--muted); }
+/* code block ใน tip */
+.kiosk-flag { background:#000; color:var(--green); padding:1px 5px; border-radius:3px; font-family:monospace; font-size:0.7rem; }
+
+/* ── MAIN ── */
+main { padding:10px; }
+/* auto-fill: ใส่การ์ดให้เต็มแถว, minmax กำหนดขนาดขั้นต่ำ */
+.order-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:10px; }
+@media (max-width:480px) { .order-grid { grid-template-columns:1fr; } }
+
+/* ── ORDER CARD ── */
+.order-card { background:var(--surface); border:2px solid var(--border); border-radius:14px; overflow:hidden; animation:slideDown 0.4s cubic-bezier(0.34,1.56,0.64,1) both; transition:border-color 0.3s, opacity 0.4s, transform 0.4s; }
+/* ใหม่ → ขอบส้ม + เงา */
+.order-card.new    { border-color:var(--accent); box-shadow:0 0 0 3px rgba(232,93,48,0.18), 0 4px 20px rgba(232,93,48,0.12); }
+/* เร่งด่วน >10 นาที → pulse ขอบแดง */
+.order-card.urgent { border-color:var(--red); animation:slideDown 0.4s cubic-bezier(0.34,1.56,0.64,1) both, urgentPulse 1.5s ease-in-out 0.5s infinite; }
+/* เสร็จแล้ว → จาง + หดตัว ก่อน JavaScript จะลบออก */
+.order-card.done   { opacity:0.2; border-color:var(--dim); transform:scale(0.95); pointer-events:none; }
+
+/* ── CARD HEADER ── */
+.card-header { padding:10px 14px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); gap:8px; }
+.card-header-left { display:flex; align-items:center; gap:10px; }
+/* ชื่อโต๊ะ — ใหญ่มาก อ่านได้ห่างจากจอ */
+.card-table         { font-family:'Prompt',sans-serif; font-size:1.3rem; font-weight:900; color:var(--text); }
+.card-table.takeaway { color:var(--blue); }
+.card-time          { font-size:0.72rem; color:var(--muted); }
+/* tag จำนวนชาม */
+.card-bowls-tag { font-size:0.62rem; color:var(--yellow); background:rgba(240,168,48,0.12); border:1px solid rgba(240,168,48,0.25); border-radius:8px; padding:1px 7px; white-space:nowrap; }
+/* ป้ายเวลาที่รอ */
+.card-elapsed        { font-size:0.68rem; color:var(--muted); background:var(--surface2); border-radius:6px; padding:2px 7px; white-space:nowrap; flex-shrink:0; }
+.card-elapsed.warn   { color:var(--yellow); background:rgba(240,168,48,0.12); } /* >5 นาที */
+.card-elapsed.urgent { color:var(--red);    background:rgba(248,81,73,0.12); }  /* >10 นาที */
+
+/* ── CARD BODY ── */
+.card-body { padding:8px 14px; }
+/* หัวชาม — เส้นแบ่งด้านบน ยกเว้นอันแรก */
+.bowl-header { font-size:0.7rem; font-weight:700; color:var(--yellow); padding:5px 0 2px; border-top:1px solid var(--dim); margin-top:6px; }
+.bowl-header:first-child { border-top:none; margin-top:0; }
+/* รายการสินค้า */
+.item-line { display:flex; align-items:center; gap:6px; padding:3px 0; border-bottom:1px solid var(--dim); font-size:0.86rem; }
+.item-line:last-child { border-bottom:none; }
+.item-icon { font-size:0.75rem; flex-shrink:0; width:16px; }
+.item-name { flex:1; color:var(--text); font-weight:600; }
+.item-qty  { font-family:'Prompt',sans-serif; font-size:0.86rem; font-weight:700; color:var(--accent); flex-shrink:0; }
+
+/* ── CARD FOOTER ── */
+.card-footer { padding:8px 10px; display:flex; align-items:center; gap:6px; border-top:1px solid var(--border); }
+.btn-done   { flex:1; padding:9px 10px; border-radius:9px; border:none; background:var(--green); color:white; cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.85rem; font-weight:600; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:5px; }
+.btn-done:hover  { filter:brightness(1.15); }
+.btn-done:active { transform:scale(0.96); }
+.btn-recall { padding:9px 10px; border-radius:9px; border:1px solid var(--yellow); background:rgba(240,168,48,0.08); color:var(--yellow); cursor:pointer; font-size:0.85rem; transition:all 0.2s; font-family:'Sarabun',sans-serif; }
+.btn-recall:hover { background:rgba(240,168,48,0.2); }
+.btn-print  { padding:9px 10px; border-radius:9px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; font-size:0.82rem; transition:all 0.2s; }
+.btn-print:hover { border-color:var(--blue); color:var(--blue); }
+
+/* ── EMPTY STATE — grid-column:1/-1 = ขยายเต็มทุก column ── */
+.empty-state { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:55vh; color:var(--muted); text-align:center; gap:12px; }
+.empty-icon { font-size:3.5rem; opacity:0.3; }
+.empty-text { font-size:0.95rem; opacity:0.5; }
+.empty-sub  { font-size:0.72rem; opacity:0.35; }
+
+/* ── PRINT SLIP — ซ่อนบนหน้าจอ ── */
+#printSlip { display:none; }
+
+/* ── ANIMATIONS ── */
+@keyframes slideDown   { from{opacity:0;transform:translateY(-16px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+@keyframes pulseDot    { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes urgentPulse { 0%,100%{box-shadow:0 0 0 2px rgba(248,81,73,0.2)} 50%{box-shadow:0 0 0 6px rgba(248,81,73,0.45)} }
+
+/* ── PRINT STYLES — ใช้เฉพาะตอนปริ้น ── */
+@media print {
+  body > * { display:none !important; }
+  #printSlip { display:block !important; font-family:'Sarabun',sans-serif; color:#000; background:white; }
+  /* @page: ถูก override โดย JavaScript ตาม paperSize ที่เลือก */
+  @page { margin:0; }
+  .slip-wrap    { padding:4px 6px; }
+  .slip-header  { text-align:center; padding-bottom:6px; border-bottom:1px dashed #000; }
+  .slip-shopname { font-size:16pt; font-weight:900; font-family:'Prompt',sans-serif; }
+  .slip-title   { font-size:9pt; color:#555; margin-top:2px; }
+  .slip-table   { font-size:26pt; font-weight:900; font-family:'Prompt',sans-serif; margin:3px 0; }
+  .slip-time    { font-size:10pt; color:#444; }
+  .slip-divider { border:none; border-top:1px dashed #000; margin:5px 0; }
+  .slip-bowl    { font-size:9pt; font-weight:700; color:#333; margin:5px 0 2px; }
+  .slip-item    { display:flex; justify-content:space-between; font-size:11pt; padding:2px 0; border-bottom:1px dotted #ccc; }
+  .slip-item:last-child { border-bottom:none; }
+  .slip-item-name { flex:1; }
+  .slip-item-qty  { font-weight:700; min-width:28px; text-align:right; }
+  .slip-footer  { text-align:center; font-size:8pt; color:#555; margin-top:6px; padding-top:5px; border-top:1px dashed #000; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="kitchen-logo">🍳 ครัว Koiii</div>
+    <div class="clock" id="clock">00:00:00</div>
+  </div>
+  <div class="header-right">
+    <span class="order-badge" id="orderBadge"></span>
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">กำลังเชื่อมต่อ...</span>
+    <a href="index.html" class="btn-back">← POS</a>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-info" id="toolbarInfo">กำลังโหลด...</div>
+  <button class="tb-btn" id="btnSound" onclick="toggleSound()">🔇 เสียง</button>
+  <button class="tb-btn" id="btnSettings" onclick="toggleSettings()">⚙️ ตั้งค่าปริ้น</button>
+  <button class="tb-btn" onclick="clearAllDone()" style="color:var(--red)">🗑️ ล้าง</button>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="settings-panel" id="settingsPanel">
+
+  <div class="setting-group">
+    <div class="setting-label">📄 ขนาดกระดาษ</div>
+    <div class="paper-btns">
+      <button class="paper-btn" id="paper-58" onclick="setPaper('58mm')">58mm (Thermal เล็ก)</button>
+      <button class="paper-btn active" id="paper-80" onclick="setPaper('80mm')">80mm (Thermal ใหญ่)</button>
+      <button class="paper-btn" id="paper-a4" onclick="setPaper('A4')">A4</button>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">💡 ตั้งค่า Chrome</div>
+    <div class="setting-tip">
+      <strong>Paper size:</strong> Ctrl+P → More settings → Paper: Custom → ใส่ขนาด → Margins: None → Save as default<br><br>
+      <!-- 🔧 Fix 4 (Gemini): เพิ่มคำแนะนำ Kiosk printing
+           --kiosk-printing คือ Chrome flag ที่ให้ปริ้นได้เลยโดยไม่ต้องกด Enter
+           วิธีเปิด: คลิกขวา Shortcut Chrome → Properties → Target
+           เพิ่ม --kiosk-printing ต่อท้าย path เช่น:
+           "C:\...\chrome.exe" --kiosk-printing
+      -->
+      <strong>ปริ้นเงียบ (ไม่ต้องกด Enter):</strong><br>
+      เพิ่ม <span class="kiosk-flag">--kiosk-printing</span> ต่อท้าย Target ใน Shortcut Chrome<br>
+      <span style="color:var(--dim)">เช่น: "chrome.exe" <span class="kiosk-flag">--kiosk-printing</span></span>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">🖨️ การปริ้น</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;cursor:pointer;color:var(--muted)">
+      <input type="checkbox" id="autoPrintCheck" checked style="width:16px;height:16px;cursor:pointer">
+      ปริ้นอัตโนมัติเมื่อมีออเดอร์ใหม่
+    </label>
+  </div>
+
+</div>
+
+<main>
+  <div class="order-grid" id="orderGrid">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🍳</div>
+      <div class="empty-text">กำลังเชื่อมต่อ...</div>
+      <div class="empty-sub">รอสักครู่</div>
+    </div>
+  </div>
+</main>
+
+<div id="printSlip"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+const SHOP_NAME      = 'Koiii Shabu';
+const POLL_INTERVAL  = 20000; // poll ทุก 20 วินาที
+const URGENT_MINUTES = 10;    // สีแดงเมื่อรอเกิน 10 นาที
+
+// ============================================================
+// STATE
+// ============================================================
+let soundEnabled = false; // เสียงปิดเริ่มต้น (browser บังคับให้ user กดก่อน)
+let audioCtx     = null;  // Web Audio Context สร้างตอน user กด
+let paperSize    = '80mm';
+
+// ─────────────────────────────────────────────────────────────
+// tableOrdersMap — Map เก็บออเดอร์แยกตามโต๊ะ
+// key   = "วันที่_โต๊ะ"  เช่น "21/03/2569_โต๊ะ 3"
+// value = array ของออเดอร์จากโต๊ะนั้น
+//
+// ทำไมใช้ Map แทน object?
+//   - .clear() ล้างได้ทีเดียว (สำหรับ memory cleanup)
+//   - รองรับ key ที่มีอักขระพิเศษ
+// ─────────────────────────────────────────────────────────────
+let tableOrdersMap = new Map();
+
+// ─────────────────────────────────────────────────────────────
+// seenIds — Set ของ order ID ที่ประมวลผลแล้ว
+// ป้องกัน poll ซ้ำ ไม่ให้แสดงการ์ดซ้ำ
+//
+// 🔧 Fix 1 (Gemini): ถ้าเปิดข้ามคืน seenIds โตเรื่อยๆ ไม่หยุด
+// แก้โดย: ล้างอัตโนมัติเมื่อวันเปลี่ยน (ดู cleanupOldData)
+// ─────────────────────────────────────────────────────────────
+let seenIds = new Set();
+
+// doneIds — Set ของออเดอร์ที่ mark เสร็จแล้ว (เก็บใน localStorage)
+let doneIds = new Set();
+
+// lastLoadedDate — วันที่ที่โหลดล่าสุด ใช้ตรวจว่าข้ามวันไหม
+let lastLoadedDate = '';
+
+// ============================================================
+// INIT — เริ่มต้นเมื่อ DOM โหลดเสร็จ
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadDoneFromStorage();     // โหลด doneIds จาก localStorage
+  loadSettingsFromStorage(); // โหลด paper size ที่เคยตั้งไว้
+  lastLoadedDate = toThaiDate(); // จำวันที่ตอนเปิดหน้า
+
+  updateClock();
+  setInterval(updateClock, 1000);     // นาฬิกา ทุก 1 วินาที
+
+  setInterval(updateElapsedAll, 60000); // อัปเดตเวลารอ ทุก 1 นาที
+
+  pollOrders();                           // Poll ครั้งแรกทันที
+  setInterval(pollOrders, POLL_INTERVAL); // แล้ว loop ทุก 20 วินาที
+
+  requestWakeLock(); // ป้องกันหน้าจอดับ
+});
+
+// ── CLOCK ──
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+// ── WAKE LOCK — ป้องกันหน้าจอดับ ──
+// จำเป็นสำหรับหน้าจอครัวที่เปิดทิ้งไว้ตลอด
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+
+// ============================================================
+// LOCAL STORAGE — บันทึก/โหลดข้อมูลถาวรใน browser
+// ข้อมูลไม่หายแม้ refresh หรือปิดเปิดหน้า
+// ============================================================
+function loadDoneFromStorage() {
+  try {
+    const saved = localStorage.getItem('koiii_kitchen_done_v2');
+    if (saved) doneIds = new Set(JSON.parse(saved));
+    // new Set(JSON.parse(saved)) = แปลง JSON string → array → Set
+  } catch(e) { doneIds = new Set(); }
+}
+
+function saveDoneToStorage() {
+  // [...doneIds] = Array.from(doneIds) = แปลง Set → array
+  // เพราะ JSON.stringify ไม่รู้จัก Set โดยตรง
+  localStorage.setItem('koiii_kitchen_done_v2', JSON.stringify([...doneIds]));
+}
+
+function loadSettingsFromStorage() {
+  const saved = localStorage.getItem('koiii_kitchen_paper');
+  if (saved) setPaper(saved, false); // false = ไม่บันทึกซ้ำ
+}
+
+// ============================================================
+// ID & DATE HELPERS
+// ============================================================
+
+// makeOrderId — ID เฉพาะของออเดอร์ = "วันที่_เวลา_โต๊ะ"
+// เช่น "21/03/2569_18:30_โต๊ะ 3"
+function makeOrderId(row) { return `${row.date}_${row.time}_${row.table}`; }
+
+// getTableKey — key สำหรับจัดกลุ่มตามโต๊ะ = "วันที่_โต๊ะ"
+// ออเดอร์หลายรอบจากโต๊ะเดียวกันมี key เหมือนกัน
+function getTableKey(row)  { return `${row.date}_${row.table || 'ไม่ระบุ'}`; }
+
+// toThaiDate — วันที่วันนี้ในรูปแบบ Sheets "dd/mm/พ.ศ."
+function toThaiDate() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear() + 543}`; // +543 = ค.ศ. → พ.ศ.
+}
+
+// ============================================================
+// POLL ORDERS — ดึงออเดอร์จาก Sheets ทุก 20 วินาที
+// ============================================================
+async function pollOrders() {
+
+  // ─── 🔧 Fix 1 (Gemini): ตรวจสอบข้ามวัน ──────────────────
+  // ถ้าวันที่ปัจจุบัน ≠ วันที่โหลดล่าสุด = ข้ามวันแล้ว
+  // → ล้าง RAM ป้องกัน seenIds / tableOrdersMap โตไม่หยุด
+  // ─────────────────────────────────────────────────────────
+  const today = toThaiDate();
+  if (lastLoadedDate && today !== lastLoadedDate) {
+    console.log(`🗓️ ข้ามวันใหม่ ${lastLoadedDate} → ${today}`);
+    cleanupOldData();
+    lastLoadedDate = today;
+  }
+
+  setStatus('loading', 'กำลังโหลด...');
+  try {
+    const res  = await fetch(`${SCRIPT_URL}?date=${encodeURIComponent(today)}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) throw new Error('ข้อมูลไม่ใช่ array');
+    processOrders(rows);
+    const t = new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+    setStatus('ok', `อัปเดต ${t}`);
+  } catch(e) {
+    console.error(e);
+    setStatus('error', 'เชื่อมต่อไม่ได้');
+  }
+}
+
+// ─── 🔧 Fix 1 (Gemini): cleanupOldData ──────────────────────
+// ล้าง seenIds และ tableOrdersMap ออกจาก RAM
+//
+// ทำไมต้องล้าง?
+//   เปิดหน้าจอข้ามคืน 7 วัน → seenIds มี ID หลายร้อยรายการ
+//   tableOrdersMap ก็เก็บออเดอร์ทุกวันไว้ → browser ช้าลง
+//
+// doneIds ไม่ล้าง เพราะเก็บใน localStorage ไม่กิน RAM มากนัก
+// ─────────────────────────────────────────────────────────────
+function cleanupOldData() {
+  console.log(`🧹 ล้าง: seenIds(${seenIds.size}) tableOrders(${tableOrdersMap.size})`);
+  seenIds.clear();        // .clear() = ล้าง Set ทั้งหมด, memory คืนทันที
+  tableOrdersMap.clear(); // .clear() = ล้าง Map ทั้งหมด
+  // รีเซ็ต UI
+  document.getElementById('orderGrid').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🌅</div>
+      <div class="empty-text">เริ่มวันใหม่</div>
+      <div class="empty-sub">กำลังโหลดออเดอร์วันนี้...</div>
+    </div>`;
+}
+
+// ============================================================
+// PROCESS ORDERS — ประมวลผล จัดกลุ่มตามโต๊ะ ระบุอันใหม่
+// ============================================================
+function processOrders(rows) {
+  const newTableKeys = new Set(); // โต๊ะที่มีออเดอร์ใหม่ในรอบนี้
+
+  rows.forEach(row => {
+    const orderId  = makeOrderId(row);
+    const tableKey = getTableKey(row);
+
+    // ถ้า ID อยู่ใน seenIds แล้ว = เคยเห็นแล้ว → ข้าม
+    if (seenIds.has(orderId)) return;
+    seenIds.add(orderId); // บันทึกว่าเคยเห็น
+
+    // เพิ่มออเดอร์เข้า Map ตาม tableKey
+    if (!tableOrdersMap.has(tableKey)) tableOrdersMap.set(tableKey, []);
+    tableOrdersMap.get(tableKey).push({ ...row, _id: orderId });
+
+    newTableKeys.add(tableKey); // โต๊ะนี้มีของใหม่
+  });
+
+  // แสดง/อัปเดตการ์ดของโต๊ะที่มีออเดอร์ใหม่
+  newTableKeys.forEach(tk => {
+    const orders = tableOrdersMap.get(tk);
+    renderTableCard(tk, orders, true);
+    // ถ้าโต๊ะยังไม่เสร็จทั้งหมด → แจ้งเตือน + ปริ้น
+    if (!orders.every(o => doneIds.has(o._id))) {
+      playAlert();
+      if (document.getElementById('autoPrintCheck')?.checked) {
+        printTableOrders(tk, orders);
+      }
+    }
+  });
+
+  updateOrderCount();
+}
+
+// ============================================================
+// RENDER TABLE CARD — 1 การ์ด = 1 โต๊ะ รวมทุกออเดอร์ของโต๊ะนั้น
+// ============================================================
+function renderTableCard(tableKey, orders, isNew = false) {
+  if (!orders?.length) return;
+  if (orders.every(o => doneIds.has(o._id))) return; // โต๊ะเสร็จแล้ว
+
+  // HTML id ของการ์ด — แทนอักขระพิเศษด้วย "-" (HTML id ไม่รองรับ / และ space)
+  const cardId = 'card-' + tableKey.replace(/[^a-zA-Z0-9]/g, '-');
+  document.getElementById(cardId)?.remove(); // ลบการ์ดเก่าก่อน re-render
+
+  const first      = orders[0];
+  const isTakeaway = first.orderType === 'กลับบ้าน' || (first.table||'').includes('กลับบ้าน');
+  const tableDisp  = isTakeaway ? '🥡 กลับบ้าน' : (first.table||'—');
+  const tableCls   = isTakeaway ? 'card-table takeaway' : 'card-table';
+  const totalBowls = countTotalBowls(orders);
+  const firstTime  = first.time || '—';
+  const mins       = getMinutesWaiting(firstTime);
+  const isUrgent   = mins >= URGENT_MINUTES;
+
+  // สร้าง HTML รายการสินค้าทั้งหมดในโต๊ะนี้
+  let itemsHtml = '';
+  orders.forEach((order, oi) => {
+    // ถ้ามีหลายออเดอร์จากโต๊ะเดียวกัน ใส่ header แยกแต่ละรอบ
+    if (orders.length > 1) {
+      const borderStyle = oi > 0 ? 'border-top:1px solid var(--dim);margin-top:8px;' : '';
+      itemsHtml += `<div class="bowl-header" style="color:var(--blue);${borderStyle}">
+        📝 ออเดอร์ที่ ${oi + 1} · ${order.time} น.
+      </div>`;
+    }
+    itemsHtml += parseItemsToHtml(order.items || '');
+  });
+
+  const cls = 'order-card' + (isNew ? ' new' : '') + (isUrgent ? ' urgent' : '');
+
+  const card = document.createElement('div');
+  card.className           = cls;
+  card.id                  = cardId;
+  card.dataset.tableKey    = tableKey;  // สำหรับ markTableDone
+  card.dataset.firstTime   = firstTime; // สำหรับ updateElapsedAll
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-header-left">
+        <div>
+          <div class="${tableCls}">${tableDisp}</div>
+          <div class="card-time">${firstTime} น.</div>
+        </div>
+        ${totalBowls > 1 ? `<span class="card-bowls-tag">${totalBowls} ชาม</span>` : ''}
+      </div>
+      <div id="elapsed-${cardId}">${getElapsedHtml(mins)}</div>
+    </div>
+    <div class="card-body">${itemsHtml}</div>
+    <div class="card-footer">
+      <button class="btn-done"   onclick="markTableDone('${tableKey}')">✅ เสร็จแล้ว</button>
+      <button class="btn-recall" onclick="recallAlert('${cardId}')" title="เรียกซ้ำ">🔔</button>
+      <button class="btn-print"  onclick="printTableOrders('${tableKey}')" title="ปริ้นซ้ำ">🖨️</button>
+    </div>`;
+
+  const grid = document.getElementById('orderGrid');
+  // ออเดอร์ใหม่ → ขึ้นก่อน, เก่า → ต่อท้าย
+  isNew ? grid.insertBefore(card, grid.firstChild) : grid.appendChild(card);
+  document.getElementById('emptyState')?.remove(); // ซ่อน empty state
+}
+
+// นับจำนวนชามทั้งหมดจากทุกออเดอร์ของโต๊ะ
+function countTotalBowls(orders) {
+  return orders.reduce((sum, o) => {
+    return sum + ((o.items?.match(/ชามที่\d+/g) || []).length || 1);
+  }, 0);
+}
+
+// ─── 🔧 Fix 3 (Gemini): parseItemsToHtml ที่ปรับปรุงแล้ว ─────
+//
+// ปัญหาเดิม: regex /^([^\s]*)\s+([^\฿]+)/ จับชื่อได้ แต่อาจเหลือ "x2" ค้างท้าย
+//
+// Regex ใหม่: /^([^\s]*)\s+([^\฿x]+)(?:\s*x(\d+))?/
+//   Group 1 = emoji
+//   Group 2 = ชื่อสินค้า (ตัดก่อนถึง ฿ หรือ x พร้อมกัน)
+//   Group 3 = จำนวน (optional)
+//
+// Bug ที่ Gemini เขียนผิด (แก้แล้ว):
+//   bowlName = bowl.match(/ชามที่\d+/) ← คืน array ไม่ใช่ string!
+//   ต้องใช้ bowlMatch[0] เพื่อดึง string ออกมา
+// ─────────────────────────────────────────────────────────────
+function parseItemsToHtml(str) {
+  if (!str) return '<div class="item-line"><span class="item-name">ไม่มีรายการ</span></div>';
+
+  return str.split(' | ').map((bowl, i) => {
+    // จับชื่อชาม เช่น "ชามที่1"
+    const bowlMatch = bowl.match(/ชามที่\d+/);
+    // 🔧 bug fix: bowlMatch คือ array ต้องใช้ [0] ดึง string ออกมา
+    const bowlTitle = bowlMatch ? bowlMatch[0] : `ชามที่ ${i + 1}`;
+
+    const items = bowl.replace(/^ชามที่\d+:\s*/, '').split(', ');
+
+    const itemsHtml = items.map(item => {
+      // 🔧 regex ใหม่จาก Gemini (bug fixed):
+      // [^\฿x]+ = จับชื่อจนถึง ฿ หรือ x (ตัดราคาและจำนวนออกพร้อมกัน)
+      // (?:\s*x(\d+))? = จับจำนวน optional
+      const match = item.match(/^([^\s]*)\s+([^\฿x]+)(?:\s*x(\d+))?/);
+      if (!match) return `<div class="item-line"><span class="item-name">${item}</span></div>`;
+
+      // Destructuring: ดึงค่าออกจาก array
+      // match[0] = string ทั้งหมด
+      // match[1] = emoji (icon)
+      // match[2] = ชื่อสินค้า (อาจมี space ท้าย)
+      // match[3] = จำนวน string เช่น "2" (อาจเป็น undefined)
+      const [, icon, name, qtyStr] = match;
+      const qty = parseInt(qtyStr) || 1; // default = 1 ถ้าไม่มีจำนวน
+
+      return `
+        <div class="item-line">
+          <span class="item-icon">${icon}</span>
+          <span class="item-name">${name.trim()}</span>
+          ${qty > 1 ? `<span class="item-qty">x${qty}</span>` : ''}
+        </div>`;
+    }).join('');
+
+    return `<div class="bowl-header">🍲 ${bowlTitle}</div>${itemsHtml}`;
+  }).join('');
+}
+
+// ── MARK DONE — mark เสร็จแล้ว ──
+function markTableDone(tableKey) {
+  const orders = tableOrdersMap.get(tableKey);
+  if (!orders) return;
+  orders.forEach(o => doneIds.add(o._id)); // mark ทุก ID ของโต๊ะนี้
+  saveDoneToStorage();
+
+  const cardId = 'card-' + tableKey.replace(/[^a-zA-Z0-9]/g, '-');
+  const card   = document.getElementById(cardId);
+  if (card) {
+    card.classList.remove('new', 'urgent');
+    card.classList.add('done'); // CSS ทำให้จาง + หดตัว
+    setTimeout(() => { card.remove(); updateOrderCount(); checkEmpty(); }, 1200);
+  }
+  updateOrderCount();
+}
+
+// ── RECALL ALERT — เรียกซ้ำ 3 ครั้ง + flash การ์ด ──
+function recallAlert(cardId) {
+  playAlert(3); // เล่นเสียง 3 ครั้ง ห่างกัน 400ms
+  const card = document.getElementById(cardId);
+  if (card) {
+    card.style.boxShadow = '0 0 0 5px rgba(240,168,48,0.5)';
+    setTimeout(() => { card.style.boxShadow = ''; }, 1000);
+  }
+}
+
+// ── CLEAR ALL DONE — ล้างทั้งหมด ใช้เปิดวันใหม่ ──
+function clearAllDone() {
+  if (!confirm('ล้างรายการเสร็จแล้วทั้งหมด?\n(ใช้เมื่อเปิดวันใหม่)')) return;
+  localStorage.removeItem('koiii_kitchen_done_v2');
+  doneIds = new Set();
+  cleanupOldData();
+  lastLoadedDate = toThaiDate();
+  pollOrders();
+}
+
+// ── UPDATE ORDER COUNT ──
+function updateOrderCount() {
+  const n     = document.querySelectorAll('.order-card:not(.done)').length;
+  const badge = document.getElementById('orderBadge');
+  const info  = document.getElementById('toolbarInfo');
+  if (n > 0) {
+    badge.textContent = `${n} โต๊ะ`; badge.classList.add('show');
+    info.innerHTML = `รอทำ: <strong>${n} โต๊ะ</strong>`;
+  } else {
+    badge.classList.remove('show');
+    info.innerHTML = '<strong style="color:var(--green)">✅ ไม่มีออเดอร์รอ</strong>';
+  }
+}
+
+function checkEmpty() {
+  if (!document.querySelector('.order-card')) {
+    document.getElementById('orderGrid').innerHTML = `
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">✅</div>
+        <div class="empty-text">ไม่มีออเดอร์รอ</div>
+        <div class="empty-sub">poll อีกครั้งใน ${POLL_INTERVAL / 1000} วินาที</div>
+      </div>`;
+  }
+}
+
+// ============================================================
+// ELAPSED TIME
+// ============================================================
+
+// ─── 🔧 Fix 2 (Gemini): getMinutesWaiting ที่ robust ขึ้น ─────
+//
+// ปัญหาเดิม: split(':').map(Number)
+//   "18:30"    → [18, 30] ✅
+//   "18:30:45" → [18, 30, 45] ← ยังพอได้ แต่ไม่ตั้งใจ
+//   "6:5"      → [6, 5] ✅
+//   "6.30 pm"  → ["6.30 pm"] → h=NaN ❌
+//
+// แก้ด้วย regex /(\d{1,2}):(\d{2})/:
+//   \d{1,2} = 1-2 หลัก รองรับทั้ง "6" และ "18"
+//   \d{2}   = พอดี 2 หลักสำหรับนาที
+//   ถ้า format ไม่ตรงเลย → match = null → คืน 0 ปลอดภัย
+// ─────────────────────────────────────────────────────────────
+function getMinutesWaiting(timeStr) {
+  if (!timeStr) return 0;
+  try {
+    // String() ป้องกันกรณีส่งค่าที่ไม่ใช่ string มา
+    const match = String(timeStr).match(/(\d{1,2}):(\d{2})/);
+    if (!match) return 0; // format ไม่ตรง → คืน 0
+
+    const h  = Number(match[1]); // match[1] = ชั่วโมง (match[0] = string ทั้งหมด)
+    const m  = Number(match[2]); // match[2] = นาที
+
+    const orderTime = new Date();
+    orderTime.setHours(h, m, 0, 0); // วันเดียวกัน ชั่วโมง h นาที m
+
+    // Date.now() = millisecond ปัจจุบัน (เร็วกว่า new Date())
+    // Math.max(0,...) ป้องกันค่าติดลบ
+    return Math.max(0, Math.floor((Date.now() - orderTime) / 60000));
+  } catch(e) {
+    return 0; // ถ้า error ใดๆ → คืน 0 ปลอดภัย
+  }
+}
+
+function getElapsedHtml(mins) {
+  if (mins <= 0) return `<span class="card-elapsed">เพิ่งเข้า</span>`;
+  let cls = 'card-elapsed';
+  if (mins >= URGENT_MINUTES) cls += ' urgent'; // >10 นาที → สีแดง
+  else if (mins >= 5)         cls += ' warn';   // >5 นาที  → สีเหลือง
+  return `<span class="${cls}">${mins} นาที</span>`;
+}
+
+// อัปเดตป้ายเวลาของทุกการ์ด (เรียกทุก 1 นาที)
+function updateElapsedAll() {
+  document.querySelectorAll('.order-card').forEach(card => {
+    const mins = getMinutesWaiting(card.dataset.firstTime);
+    const el   = document.getElementById('elapsed-' + card.id);
+    // outerHTML แทนที่ element ทั้งใบ (ไม่ใช่แค่เนื้อใน)
+    if (el) el.outerHTML = `<div id="elapsed-${card.id}">${getElapsedHtml(mins)}</div>`;
+    if (mins >= URGENT_MINUTES && !card.classList.contains('done')) {
+      card.classList.add('urgent');
+    }
+  });
+}
+
+// ── STATUS ──
+function setStatus(state, msg) {
+  document.getElementById('statusDot').className    = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = msg;
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+
+// toggleSettings — เปิด/ปิดแผงตั้งค่า
+function toggleSettings() {
+  const panel  = document.getElementById('settingsPanel');
+  const btn    = document.getElementById('btnSettings');
+  const isOpen = panel.classList.toggle('open');
+  // classList.toggle คืน true ถ้าเพิ่ม class, false ถ้าลบ
+  btn.classList.toggle('settings-open', isOpen);
+}
+
+// setPaper — ตั้งค่า paper size
+// size = '58mm' | '80mm' | 'A4'
+// save = บันทึกลง localStorage ไหม
+function setPaper(size, save = true) {
+  paperSize = size;
+  document.querySelectorAll('.paper-btn').forEach(b => b.classList.remove('active'));
+  const key = size === 'A4' ? 'a4' : size.replace('mm', ''); // '80mm' → '80'
+  document.getElementById(`paper-${key}`)?.classList.add('active');
+  if (save) localStorage.setItem('koiii_kitchen_paper', size);
+}
+
+// ============================================================
+// SOUND — Web Audio API สร้างเสียงโดยไม่ต้องใช้ไฟล์ mp3
+// ============================================================
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('btnSound');
+  if (soundEnabled) {
+    btn.textContent = '🔊 เสียง: เปิด';
+    btn.classList.add('sound-on');
+    // AudioContext ต้องสร้างจาก user gesture (click) เท่านั้น
+    // browser จะ block ถ้าสร้างตอนโหลดหน้า
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    playAlert(); // ทดสอบทันที
+  } else {
+    btn.textContent = '🔇 เสียง';
+    btn.classList.remove('sound-on');
+  }
+}
+
+// playAlert — เล่นเสียงแจ้งเตือน
+// times = จำนวนครั้ง (1=ปกติ, 3=เรียกซ้ำ, ห่างกัน 400ms)
+function playAlert(times = 1) {
+  if (!soundEnabled || !audioCtx) return;
+  for (let i = 0; i < times; i++) setTimeout(() => playDing(), i * 400);
+}
+
+// playDing — เล่นเสียง "ดิ้ง-ดอง" 1 ครั้ง (2 โน้ต ห่างกัน 180ms)
+function playDing() {
+  if (!audioCtx) return;
+  try {
+    // helper: สร้างโน้ตเดียว
+    // freq   = ความถี่ Hz (สูง=แหลม), delayMs=เริ่มช้ากี่ ms, durMs=ยาวกี่ ms
+    const playNote = (freq, delayMs, durMs) => {
+      const osc  = audioCtx.createOscillator(); // สร้างคลื่นเสียง
+      const gain = audioCtx.createGain();        // ควบคุมความดัง
+
+      osc.connect(gain); gain.connect(audioCtx.destination); // เชื่อมไปลำโพง
+
+      osc.type            = 'sine'; // คลื่น sine = เสียงนุ่มกลมกล่อม
+      osc.frequency.value = freq;
+
+      const t = audioCtx.currentTime + delayMs / 1000;
+      gain.gain.setValueAtTime(0.5, t); // เริ่มดัง 50%
+      // exponentialRamp ค่อยๆ จางแบบ natural ไม่ตัดทันที
+      gain.gain.exponentialRampToValueAtTime(0.001, t + durMs / 1000);
+
+      osc.start(t); osc.stop(t + durMs / 1000);
+    };
+
+    playNote(880, 0,   400); // โน้ต A5 (ดิ้ง) — เริ่มทันที
+    playNote(660, 180, 500); // โน้ต E5 (ดอง) — หลัง 180ms
+  } catch(e) {}
+}
+
+// ============================================================
+// PRINT — ปริ้นใบออเดอร์
+// ============================================================
+
+// printTableOrders — สร้างใบปริ้นและสั่งพิมพ์
+// tableKey       = key ของโต๊ะ
+// ordersOverride = ถ้าส่ง orders มาตรงๆ จะใช้แทน tableOrdersMap
+function printTableOrders(tableKey, ordersOverride) {
+  const orders = ordersOverride || tableOrdersMap.get(tableKey);
+  if (!orders?.length) return;
+
+  const first     = orders[0];
+  const isTakeaway= first.orderType === 'กลับบ้าน';
+  const tableDisp = isTakeaway ? '🥡 กลับบ้าน' : (first.table || '—');
+
+  // สร้าง HTML รายการสำหรับใบปริ้น (ใช้ class .slip-* ตาม @media print)
+  let itemsHtml = '';
+  orders.forEach((order, i) => {
+    if (orders.length > 1) {
+      itemsHtml += `<div class="slip-bowl">── ออเดอร์ที่ ${i + 1} (${order.time} น.) ──</div>`;
+    }
+    if (order.items) {
+      order.items.split(' | ').forEach((bowl, bi) => {
+        const bm = bowl.match(/ชามที่\d+/);
+        itemsHtml += `<div class="slip-bowl">— ${bm ? bm[0] : 'ชาม ' + (bi + 1)} —</div>`;
+        bowl.replace(/^ชามที่\d+:\s*/, '').split(', ').forEach(item => {
+          // ใช้ regex เดียวกับ parseItemsToHtml (Fix 3)
+          const match = item.match(/^([^\s]*)\s+([^\฿x]+)(?:\s*x(\d+))?/);
+          if (match) {
+            const [, , name, qtyStr] = match;
+            const qty = parseInt(qtyStr) || 1;
+            itemsHtml += `<div class="slip-item">
+              <span class="slip-item-name">${name.trim()}</span>
+              <span class="slip-item-qty">x${qty}</span>
+            </div>`;
+          }
+        });
+      });
+    }
+  });
+
+  const total = orders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0);
+
+  // 🔧 Fix Gemini ข้อ 4 (print): inject @page CSS ตาม paperSize ที่เลือก
+  // @page กำหนดขนาดกระดาษและ margin สำหรับ @media print
+  // ต้อง inject ตอนปริ้น เพราะ paperSize อาจเปลี่ยนได้ระหว่างใช้งาน
+  const pageCSS = paperSize === 'A4'
+    ? '@page { size: A4; margin: 10mm; }'             // A4 มี margin ปกติ
+    : `@page { size: ${paperSize} auto; margin: 0; }`; // Thermal ไม่มี margin
+
+  document.getElementById('printSlip').innerHTML = `
+    <style>${pageCSS}</style>
+    <div class="slip-wrap">
+      <div class="slip-header">
+        <div class="slip-shopname">${SHOP_NAME}</div>
+        <div class="slip-title">ใบออเดอร์ครัว</div>
+        <div class="slip-table">${tableDisp}</div>
+        <div class="slip-time">${first.time || '—'} น.</div>
+      </div>
+      <hr class="slip-divider">
+      ${itemsHtml}
+      <hr class="slip-divider">
+      <div class="slip-footer">
+        ยอดรวม ฿${total.toLocaleString()}<br>
+        ${new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})} น.
+      </div>
+    </div>`;
+
+  // รอ 300ms ให้ DOM อัปเดตก่อน แล้วค่อย print
+  // ถ้าเร็วเกินไป #printSlip อาจยังว่างอยู่
+  setTimeout(() => window.print(), 300);
+}
+</script>
+</body>
+</html>
