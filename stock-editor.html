@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  stock-editor.html — ตั้งค่าสต็อกสินค้า Koiii Shabu v3      ║
+  ║                                                              ║
+  ║  ฟีเจอร์ทั้งหมด:                                             ║
+  ║  ✅ Accordion — กดลูกศร ▼ เพื่อขยาย/หุบรายการ               ║
+  ║  ✅ Toggle switch — เปิด/ปิดสินค้าแต่ละชิ้น                  ║
+  ║  ✅ Search box — ค้นหาชื่อสินค้า real-time                   ║
+  ║  ✅ บันทึกชิ้นเดียว หรือบันทึกทั้งหมดพร้อมกัน               ║
+  ║  ✅ โหลดจากเมนู POS — สร้างสต็อกอัตโนมัติ                   ║
+  ║  ✅ beforeunload — เตือนก่อนปิดหน้าถ้ายังไม่ได้บันทึก        ║
+  ║  ✅ Loading state — spinner ขณะโหลด/บันทึก                   ║
+  ║  ✅ คำนวณราคาขาย — Grab / LINE MAN / หน้าร้าน               ║
+  ║                                                              ║
+  ║  แก้ไขจาก v2:                                                ║
+  ║  🔧 ใช้ INDEX แทน item.id เป็น DOM key                       ║
+  ║  🔧 isActive() รับ true/"TRUE"/"true"/1 ครบทุก case          ║
+  ║  🔧 เพิ่ม Search/Filter                                       ║
+  ║  🔧 เพิ่ม beforeunload warning                               ║
+  ║  🔧 เพิ่ม loading state ตอนโหลดจากเมนู                      ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚙️ ตั้งค่าสต็อก — Koiii Shabu</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   CSS VARIABLES — ตัวแปรสีทั้งหน้า
+   แก้ที่นี่จุดเดียวเพื่อเปลี่ยนธีมสีทั้งระบบ
+   ============================================================ */
+:root {
+  --bg:      #0d1117; /* พื้นหลังหลัก — ดำเข้ม */
+  --surface: #161b22; /* พื้นหลัง header/card — เทาเข้ม */
+  --surface2:#1c2330; /* พื้นหลัง sub-element */
+  --card:    #21262d; /* พื้นหลัง input/modal */
+  --border:  #30363d; /* สีเส้นขอบ */
+  --accent:  #e85d30; /* สีส้มหลักแบรนด์ */
+  --gold:    #f0a830; /* สีทอง — ใกล้หมด */
+  --green:   #3fb950; /* สีเขียว — ปกติ/สำเร็จ */
+  --blue:    #58a6ff; /* สีฟ้า */
+  --red:     #f85149; /* สีแดง — error/เติมด่วน */
+  --text:    #e6edf3; /* ข้อความหลัก — ขาวนวล */
+  --muted:   #7d8590; /* ข้อความรอง — เทากลาง */
+  --dim:     #484f58; /* ข้อความจาง — เทาเข้ม */
+}
+
+/* ล้างค่า default ของ browser ทุก element */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Sarabun', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh; /* dvh = Dynamic Viewport Height รองรับมือถือ */
+}
+
+/* ============================================================
+   HEADER — แถบบนสุด ติดหน้าจอตลอด
+   position:sticky + top:0 = ไม่หายไปตอน scroll
+   ============================================================ */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100; /* อยู่เหนือ element อื่นไม่ถูกบัง */
+  gap: 8px;
+}
+.header-logo {
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap; /* ไม่ให้ตัดบรรทัด */
+}
+.header-right { display: flex; align-items: center; gap: 6px; }
+
+/* ปุ่มลิงก์ใน header */
+.btn-link {
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 11px;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-link:hover { color: var(--text); border-color: var(--accent); }
+
+/* ปุ่มบันทึกทั้งหมดใน header */
+.btn-save-all {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.2s;
+}
+.btn-save-all:hover { filter: brightness(1.1); }
+/* disabled = กำลังบันทึก ป้องกันกดซ้ำ */
+.btn-save-all:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================
+   TABS — แถบสลับ "รายการสินค้า" / "คำนวณราคาขาย"
+   border-bottom:2px solid transparent = เส้นใต้ tab (ซ่อนถ้าไม่ active)
+   ============================================================ */
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+.tab-btn {
+  padding: 12px 18px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Sarabun', sans-serif;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-btn:hover:not(.active) { color: var(--text); }
+
+/* ซ่อน tab-pane ทั้งหมด แสดงเฉพาะที่มี class .active */
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ============================================================
+   MAIN — พื้นที่เนื้อหาหลัก
+   max-width จำกัดความกว้างบนจอใหญ่ + margin:auto จัดกึ่งกลาง
+   ============================================================ */
+main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
+
+/* ============================================================
+   STATUS BAR — แถบแจ้งสถานะ (สำเร็จ/error/loading)
+   ซ่อนด้วย display:none เริ่มต้น แสดงเมื่อมี class .show
+   ============================================================ */
+.status-bar {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+  display: none; /* ซ่อนไว้ก่อน */
+  animation: fadeIn 0.3s ease;
+}
+.status-bar.show    { display: block; }
+.status-bar.success { background: rgba(63,185,80,0.12);  color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+.status-bar.error   { background: rgba(248,81,73,0.12);  color: var(--red);   border: 1px solid rgba(248,81,73,0.25); }
+.status-bar.loading { background: rgba(88,166,255,0.08); color: var(--muted); border: 1px solid rgba(88,166,255,0.2); }
+
+/* ============================================================
+   TOOLBAR — แถบปุ่มเหนือรายการสินค้า + Search box
+   ============================================================ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap; /* ขึ้นบรรทัดใหม่ได้บนมือถือ */
+}
+.toolbar-info { flex: 1; font-size: 0.78rem; color: var(--muted); }
+
+/* ปุ่มสีเขียว (เพิ่มสินค้า) */
+.btn-green {
+  background: var(--green);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s;
+  white-space: nowrap;
+}
+.btn-green:hover { filter: brightness(1.1); }
+.btn-green:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ปุ่มขอบ (โหลดจากเมนู POS) */
+.btn-outline {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--muted);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+.btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================
+   SEARCH BOX — ค้นหาชื่อสินค้า real-time
+   วางชิดขวาด้วย margin-left:auto
+   ============================================================ */
+.search-wrap {
+  margin-left: auto; /* ดันไปชิดขวาสุด */
+  position: relative; /* รองรับ icon ที่ซ้อนอยู่ข้างใน */
+}
+.search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%); /* จัดกึ่งกลางแนวตั้ง */
+  font-size: 0.72rem;
+  color: var(--dim);
+  pointer-events: none; /* ไม่รับ click ป้องกันบัง input */
+}
+.search-input {
+  padding: 6px 10px 6px 28px; /* padding-left เผื่อ icon */
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.78rem;
+  width: 160px;
+  transition: all 0.3s;
+}
+/* ขยายเมื่อ focus ให้พิมพ์สะดวก */
+.search-input:focus { outline: none; border-color: var(--accent); width: 200px; background: var(--card); }
+.search-input::placeholder { color: var(--dim); }
+
+/* ============================================================
+   CATEGORY GROUP — กลุ่มสินค้าแต่ละหมวด
+   ============================================================ */
+.cat-group { margin-bottom: 12px; }
+
+/* หัวหมวด เช่น "🥩 เนื้อสัตว์ (4)" */
+.cat-header {
+  padding: 7px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0; /* โค้งแค่มุมบน ต่อกับ cat-body ข้างล่าง */
+}
+
+/* กล่องรายการในหมวด */
+.cat-body {
+  border: 1px solid var(--border);
+  border-radius: 0 0 10px 10px; /* โค้งแค่มุมล่าง */
+  overflow: hidden; /* ตัดขอบโค้งให้สวย */
+  background: var(--surface);
+}
+
+/* ============================================================
+   ITEM ROW — แต่ละรายการสินค้า
+   ============================================================ */
+.item-row { border-bottom: 1px solid var(--border); }
+.item-row:last-child { border-bottom: none; }
+
+/* HEAD — ส่วนที่เห็นตลอดเวลา กดเพื่อขยาย/หุบ */
+.item-head {
+  display: flex;
+  align-items: center;
+  padding: 11px 14px;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none; /* ไม่ให้เลือก text ตอน double-click */
+  transition: background 0.15s;
+}
+.item-head:hover { background: rgba(255,255,255,0.025); }
+
+/* ============================================================
+   TOGGLE SWITCH — สวิตช์เปิด/ปิดสินค้า
+   
+   โครงสร้าง:
+     <label class="sw">
+       <input type="checkbox">  ← input จริง แต่ซ่อนด้วย opacity:0
+       <span class="sw-track">  ← รูปร่างสวิตช์ที่เห็น
+     </label>
+   
+   ::after ใน sw-track = ลูกกลมที่เลื่อนซ้าย-ขวา
+   input:checked + .sw-track = CSS selector หมายถึง
+     "sw-track ที่อยู่หลัง input ที่ checked" → เปลี่ยนสี
+   ============================================================ */
+.sw { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; position: absolute; } /* ซ่อน input จริง */
+.sw-track {
+  position: absolute;
+  inset: 0; /* top:0 right:0 bottom:0 left:0 ย่อรวมกัน */
+  border-radius: 20px;
+  background: var(--dim); /* สีเทา = ปิด */
+  cursor: pointer;
+  transition: background 0.25s;
+}
+/* ลูกกลมข้างใน */
+.sw-track::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  left: 3px; top: 3px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.25s; /* เลื่อนซ้าย-ขวาแบบนุ่มนวล */
+}
+/* เมื่อ checked → เขียว + ลูกกลมเลื่อนขวา 16px */
+.sw input:checked + .sw-track { background: var(--green); }
+.sw input:checked + .sw-track::after { transform: translateX(16px); }
+/* สีพิเศษตามสถานะสต็อก */
+.sw-track.critical { background: var(--red)  !important; } /* เติมด่วน */
+.sw-track.low      { background: var(--gold) !important; } /* ใกล้หมด */
+
+/* ข้อมูลสินค้า (ชื่อ + meta) */
+.head-info { flex: 1; min-width: 0; } /* min-width:0 ป้องกัน overflow */
+.head-name {
+  font-size: 0.9rem; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; /* "..." ถ้ายาวเกิน */
+}
+.head-meta { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+
+/* badge สถานะขนาดเล็ก */
+.sbadge {
+  font-size: 0.62rem; padding: 2px 8px; border-radius: 8px;
+  white-space: nowrap; flex-shrink: 0; /* ไม่หดตัวเมื่อพื้นที่แคบ */
+}
+.sbadge.ok       { background: rgba(63,185,80,0.12);  color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+.sbadge.low      { background: rgba(240,168,48,0.12); color: var(--gold);  border: 1px solid rgba(240,168,48,0.3); }
+.sbadge.critical { background: rgba(248,81,73,0.12);  color: var(--red);   border: 1px solid rgba(248,81,73,0.3); }
+.sbadge.inactive { background: rgba(72,79,88,0.18);   color: var(--dim);   border: 1px solid rgba(72,79,88,0.3); }
+
+/* ลูกศร ▼ → หมุนเป็น ▲ ตอน open */
+.chev {
+  font-size: 10px; color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+  padding: 4px;
+  line-height: 1;
+}
+.chev.open { transform: rotate(180deg); }
+
+/* ============================================================
+   ITEM BODY — ส่วนที่ซ่อน/แสดงได้
+   display:none = ซ่อน, .open = display:block + animation
+   ============================================================ */
+.item-body {
+  display: none;
+  padding: 16px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+}
+.item-body.open {
+  display: block;
+  animation: slideDown 0.2s ease; /* เลื่อนลงมาตอนเปิด */
+}
+
+/* animation เลื่อนลงมา */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ============================================================
+   FIELD GRID — ตาราง input ภายใน accordion body
+   Desktop: 3 คอลัมน์ / มือถือ: 2 คอลัมน์
+   ============================================================ */
+.fgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (max-width: 640px) { .fgrid { grid-template-columns: repeat(2, 1fr); } }
+
+/* กลุ่ม label + input */
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field.full { grid-column: 1 / -1; } /* ขยายเต็มความกว้าง */
+
+.field label {
+  font-size: 0.67rem; color: var(--muted);
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.field input, .field select {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 10px;
+  color: var(--text); font-family: 'Sarabun', sans-serif;
+  font-size: 0.85rem; width: 100%; transition: border-color 0.2s;
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.field select option { background: var(--card); }
+.fhint { font-size: 0.62rem; color: var(--dim); }
+
+/* ป้าย ⚠️ ต้องตรง สำหรับ "ชื่อในเมนู POS" */
+.warn-tag {
+  font-size: 0.58rem; color: var(--gold);
+  background: rgba(240,168,48,0.1); border: 1px solid rgba(240,168,48,0.3);
+  border-radius: 4px; padding: 1px 4px;
+  margin-left: 3px; vertical-align: middle;
+}
+
+/* ============================================================
+   ITEM ACTIONS — ปุ่มบันทึก/ลบ ใต้ field grid
+   justify-content:flex-end = ชิดขวา
+   ============================================================ */
+.item-actions {
+  display: flex; gap: 8px;
+  justify-content: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.btn-save-item {
+  padding: 7px 20px; border-radius: 8px; border: none;
+  background: var(--green); color: white;
+  font-family: 'Sarabun', sans-serif; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; min-width: 120px;
+}
+.btn-save-item:hover   { filter: brightness(1.1); }
+.btn-save-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-del-item {
+  padding: 7px 14px; border-radius: 8px;
+  border: 1px solid var(--red); background: transparent; color: var(--red);
+  font-family: 'Sarabun', sans-serif; font-size: 0.82rem;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-del-item:hover { background: rgba(248,81,73,0.1); }
+
+/* ============================================================
+   UNSAVED INDICATOR — จุดสีส้ม "มีการเปลี่ยนแปลง"
+   แสดงใน header badge เมื่อมีข้อมูลที่ยังไม่ได้บันทึก
+   ============================================================ */
+.unsaved-dot {
+  display: none; /* ซ่อนไว้ก่อน */
+  width: 8px; height: 8px;
+  background: var(--accent); border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite; /* กระพริบ */
+}
+.unsaved-dot.show { display: inline-block; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.unsaved-label {
+  font-size: 0.72rem; color: var(--gold);
+  display: none; white-space: nowrap;
+}
+.unsaved-label.show { display: inline; }
+
+/* EMPTY STATE */
+.empty-box {
+  text-align: center; padding: 50px 20px;
+  color: var(--muted); font-size: 0.85rem; line-height: 1.8;
+}
+
+/* ============================================================
+   PRICE CALCULATOR — เครื่องคำนวณราคาขาย
+   2 คอลัมน์บน desktop, 1 คอลัมน์บนมือถือ
+   ============================================================ */
+.calc-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .calc-wrap { grid-template-columns: 1fr; } }
+.calc-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.calc-title { font-family: 'Prompt', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--accent); margin-bottom: 14px; }
+.cf { margin-bottom: 12px; }
+.cf label { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; display: block; }
+.ci { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-family: 'Sarabun', sans-serif; font-size: 0.88rem; }
+.ci:focus { outline: none; border-color: var(--accent); }
+.ci option { background: var(--card); }
+.platform-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.ptab { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; font-family: 'Sarabun', sans-serif; font-size: 0.75rem; transition: all 0.2s; }
+.ptab.active { border-color: var(--blue); color: var(--blue); background: rgba(88,166,255,0.1); font-weight: 600; }
+.calc-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.calc-result { background: var(--surface2); border-radius: 10px; padding: 14px; }
+.calc-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; }
+.calc-row + .calc-row { border-top: 1px solid var(--border); }
+.calc-row.total-row { margin-top: 8px; padding-top: 10px; border-top: 2px solid var(--border) !important; }
+.crl { font-size: 0.78rem; color: var(--muted); }
+.crv { font-size: 0.82rem; color: var(--text); font-weight: 600; }
+.crv.big    { font-family: 'Prompt', sans-serif; font-size: 1.2rem; color: var(--accent); }
+.crv.profit { color: var(--green); }
+.crv.loss   { color: var(--red); }
+.calc-warn { display: none; margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); font-size: 0.75rem; color: var(--red); }
+.formula-note { font-size: 0.7rem; color: var(--dim); line-height: 1.7; background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+.formula-note strong { color: var(--muted); }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header>
+  <div class="header-logo">⚙️ ตั้งค่าสต็อก</div>
+  <div class="header-right">
+    <!-- จุดสีส้มกระพริบ + ข้อความ แสดงตอนมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก -->
+    <span class="unsaved-dot"   id="unsavedDot"></span>
+    <span class="unsaved-label" id="unsavedLabel">มีการเปลี่ยนแปลง</span>
+    <a href="stock.html" class="btn-link">📦 ดูสต็อก</a>
+    <a href="index.html" class="btn-link">← POS</a>
+    <!-- onclick เรียก saveAll() — บันทึก stockItems ทั้งหมดไป Sheets -->
+    <button class="btn-save-all" id="btnSaveAll" onclick="saveAll()">💾 บันทึกทั้งหมด</button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('items', this)">📋 รายการสินค้า</button>
+  <button class="tab-btn"        onclick="switchTab('price', this)">💰 คำนวณราคาขาย</button>
+</div>
+
+<main>
+  <!-- แถบแจ้งสถานะ (สำเร็จ/error/loading) JavaScript อัปเดตตรงนี้ -->
+  <div id="statusBar" class="status-bar"></div>
+
+  <!-- ============================================================
+       TAB 1 — รายการสินค้า (Accordion)
+       ============================================================ -->
+  <div class="tab-pane active" id="pane-items">
+
+    <div class="toolbar">
+      <!-- ตัวเลขจำนวนรายการ JavaScript เขียนตรงนี้ -->
+      <div class="toolbar-info" id="itemCount">กำลังโหลด...</div>
+
+      <!-- ปุ่มโหลดจากเมนู POS — สร้างสต็อกอัตโนมัติจากสิ่งที่มีในเมนู -->
+      <button class="btn-outline" id="btnLoadMenu" onclick="loadFromMenu()">
+        <span id="loadMenuIcon">📥</span> โหลดจากเมนู POS
+      </button>
+
+      <!-- ปุ่มเพิ่มสินค้าใหม่ทีละชิ้น -->
+      <button class="btn-green" onclick="addItem()">＋ เพิ่มสินค้า</button>
+
+      <!-- Search box — กรองรายการตามชื่อที่พิมพ์ -->
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <!--
+          oninput = ทำงานทุกครั้งที่พิมพ์ (ไม่รอ Enter)
+          filterBySearch() ซ่อน/แสดง row ตามคำที่พิมพ์
+        -->
+        <input type="text" class="search-input" id="searchInput"
+               placeholder="ค้นหาสินค้า..."
+               oninput="filterBySearch(this.value)">
+      </div>
+    </div>
+
+    <!-- Accordion container — JavaScript inject รายการทั้งหมดตรงนี้ -->
+    <div id="accordionRoot"></div>
+
+  </div><!-- /pane-items -->
+
+  <!-- ============================================================
+       TAB 2 — คำนวณราคาขาย
+       ============================================================ -->
+  <div class="tab-pane" id="pane-price">
+    <div class="calc-wrap">
+
+      <!-- ฝั่งซ้าย: กรอกข้อมูล input -->
+      <div class="calc-card">
+        <div class="calc-title">🧮 ข้อมูลต้นทุน</div>
+
+        <!-- Dropdown เลือกสินค้า — JavaScript เติม option จาก stockItems -->
+        <div class="cf">
+          <label>เลือกสินค้า (ดึงต้นทุนอัตโนมัติ)</label>
+          <select class="ci" id="calcProduct" onchange="autofillCost()">
+            <option value="">— เลือกสินค้า —</option>
+          </select>
+        </div>
+
+        <div class="cf">
+          <label>ต้นทุนวัตถุดิบ (฿/order)</label>
+          <!-- oninput = คำนวณทุกครั้งที่พิมพ์ -->
+          <input type="number" class="ci" id="calcCost" placeholder="0.00" min="0" step="0.01" oninput="calcPrice()">
+        </div>
+
+        <div class="cf">
+          <label>ต้นทุนอื่นๆ (ค่าแพ็ก กล่อง ฯลฯ)</label>
+          <input type="number" class="ci" id="calcExtra" placeholder="0.00" min="0" step="0.01" value="0" oninput="calcPrice()">
+        </div>
+
+        <hr class="calc-divider">
+
+        <!-- Platform tabs — เลือกช่องทางขาย ตั้ง GP% อัตโนมัติ -->
+        <div class="cf">
+          <label>แพลตฟอร์มที่จะขาย</label>
+          <div class="platform-tabs">
+            <!-- setPlatform(gp, btn) — ตั้งค่า GP% และอัปเดต active class -->
+            <div class="ptab active" onclick="setPlatform(0,   this)">🏪 หน้าร้าน</div>
+            <div class="ptab"        onclick="setPlatform(30,  this)">🟢 Grab (~30%)</div>
+            <div class="ptab"        onclick="setPlatform(30,  this)">🟡 LINE MAN (~30%)</div>
+            <div class="ptab"        onclick="setPlatform(-1,  this)">✏️ กำหนดเอง</div>
+          </div>
+        </div>
+
+        <!-- ช่องกรอก GP% เอง — ซ่อนไว้ แสดงเมื่อเลือก "กำหนดเอง" -->
+        <div class="cf" id="gpCustomField" style="display:none">
+          <label>GP % ที่แพลตฟอร์มหัก</label>
+          <input type="number" class="ci" id="calcGP" placeholder="30" min="0" max="100" step="0.1" value="30" oninput="calcPrice()">
+        </div>
+
+        <div class="cf">
+          <label>กำไรที่ต้องการ (%)</label>
+          <input type="number" class="ci" id="calcProfit" placeholder="30" min="0" max="99" step="1" value="30" oninput="calcPrice()">
+        </div>
+      </div>
+
+      <!-- ฝั่งขวา: ผลลัพธ์ -->
+      <div class="calc-card">
+        <div class="calc-title">📊 ผลลัพธ์</div>
+        <!-- ชื่อ platform ที่เลือก JavaScript อัปเดต -->
+        <div id="platformLabel" style="font-size:0.82rem;color:var(--blue);margin-bottom:12px;font-weight:600">🏪 หน้าร้าน</div>
+
+        <div class="calc-result">
+          <div class="calc-row"><span class="crl">ต้นทุนรวม</span>           <span class="crv"        id="resTotalCost">—</span></div>
+          <div class="calc-row"><span class="crl">GP ที่แพลตฟอร์มหัก</span> <span class="crv"        id="resGP">—</span></div>
+          <div class="calc-row"><span class="crl">กำไรที่ต้องการ</span>     <span class="crv profit" id="resWantedProfit">—</span></div>
+          <div class="calc-row total-row">
+            <span class="crl" style="font-weight:700;color:var(--text)">💡 ราคาขายที่แนะนำ</span>
+            <span class="crv big" id="resSellPrice">—</span>
+          </div>
+        </div>
+
+        <hr class="calc-divider">
+
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;font-weight:600">✅ ตรวจสอบย้อนกลับ</div>
+        <div class="calc-result">
+          <div class="calc-row"><span class="crl">รายได้หลังหัก GP</span> <span class="crv"        id="resActualRevenue">—</span></div>
+          <div class="calc-row"><span class="crl">กำไรจริง (฿)</span>     <span class="crv profit" id="resActualProfit">—</span></div>
+          <div class="calc-row"><span class="crl">กำไรจริง (%)</span>     <span class="crv profit" id="resActualPct">—</span></div>
+        </div>
+
+        <!-- แสดงเมื่อ GP + กำไร ≥ 100% — เป็นไปไม่ได้ทางคณิตศาสตร์ -->
+        <div id="calcWarning" class="calc-warn"></div>
+
+        <div class="formula-note">
+          <strong>สูตร:</strong> ราคาขาย = ต้นทุนรวม ÷ (1 − GP% − กำไร%)<br>
+          <span style="color:var(--red)">ผิด:</span> 50 × 1.3 = 65 → Grab หัก 30% = 45.50 ขาดทุน!<br>
+          <span style="color:var(--green)">ถูก:</span> 50 ÷ 0.50 = 100 → ได้ 70 บาท กำไร 20 บาท ✅
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /pane-price -->
+
+</main>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  JAVASCRIPT — ตั้งค่าสต็อก Koiii Shabu v3                   ║
+// ║                                                              ║
+// ║  โครงสร้างหลัก:                                              ║
+// ║  1. Config & Constants   — ค่าคงที่ทั้งหมด                   ║
+// ║  2. State                — ตัวแปรเก็บสถานะ                   ║
+// ║  3. isActive()           — ตรวจค่า boolean จาก Sheets        ║
+// ║  4. Init                 — เริ่มต้นเมื่อหน้าโหลด              ║
+// ║  5. Tab Switch           — สลับแท็บ                          ║
+// ║  6. Load Data            — ดึงข้อมูลจาก Sheets               ║
+// ║  7. renderAll()          — วาด accordion ใหม่ทั้งหมด          ║
+// ║  8. buildItemRow()       — สร้าง DOM 1 รายการ                ║
+// ║  9. toggleRow()          — เปิด/ปิด accordion                 ║
+// ║  10. filterBySearch()    — ค้นหาแบบ real-time                 ║
+// ║  11. markUnsaved()       — แจ้งว่ายังไม่ได้บันทึก             ║
+// ║  12. CRUD                — เพิ่ม/ลบ/บันทึก                   ║
+// ║  13. Status Bar          — แจ้งสถานะ                         ║
+// ║  14. Price Calculator    — คำนวณราคาขาย                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+
+// ═══════════════════════════════════════════════════════════════
+// 1. CONFIG & CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+// URL ของ Google Apps Script — เปลี่ยนตรงนี้ถ้า deploy Script ใหม่
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+
+// หมวดสินค้าทั้งหมด — ใช้สร้าง <option> ใน select
+const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','แปรรูป','ของหวาน','น้ำซุป','น้ำจิ้ม'];
+
+// หน่วยที่รองรับ
+const UNITS = ['g','ชิ้น','ml'];
+
+// emoji ประจำหมวด สำหรับหัว category group
+const CAT_EMOJI = {
+  เนื้อสัตว์:'🥩', ผัก:'🥬', เห็ด:'🍄', เต้าหู้:'🟨',
+  แปรรูป:'🍢', ของหวาน:'🍰', น้ำซุป:'🍲', น้ำจิ้ม:'🥜'
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// 2. STATE — ตัวแปรเก็บสถานะทั้งหมด
+// ═══════════════════════════════════════════════════════════════
+
+let stockItems = []; // สต็อกทั้งหมดที่โหลดมาจาก Sheets
+let menuItems  = []; // เมนู POS (สำหรับ dropdown + ปุ่มโหลดจากเมนู)
+let currentGP  = 0;  // GP% ของ platform ที่เลือกในเครื่องคำนวณ
+let hasUnsaved = false; // มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึกไหม
+
+// openSet — เก็บ INDEX ของ row ที่ accordion เปิดอยู่
+//
+// ทำไมใช้ INDEX แทน item.id?
+//   item.id จาก Google Sheets อาจมีอักขระพิเศษ เช่น จุด ช่องว่าง
+//   ทำให้ getElementById('body-st1234.56') หาไม่เจอ
+//   เพราะ CSS selector ตีความ '.' เป็น class selector
+//   แต่ index เป็นตัวเลขล้วน ไม่มีปัญหานี้เลย
+//
+// Set vs Array:
+//   Set ไม่มีค่าซ้ำ .has() .add() .delete() เร็วกว่า Array
+const openSet = new Set();
+
+
+// ═══════════════════════════════════════════════════════════════
+// 3. isActive() — ตรวจสอบค่า active จาก Google Sheets
+//
+// ปัญหา: Sheets ส่งค่า active กลับมาได้หลายรูปแบบ:
+//   - true       (JavaScript Boolean)
+//   - "TRUE"     (String ตัวใหญ่ — Sheets ส่งมาบ่อย)
+//   - "true"     (String ตัวเล็ก — บางครั้ง)
+//   - 1          (Number — บางครั้ง)
+//
+// ถ้าเช็คแค่ item.active === true จะหลุด case อื่นทั้งหมด
+// จึงต้องรับให้ครบทุก case ด้วยฟังก์ชันนี้
+// ═══════════════════════════════════════════════════════════════
+function isActive(val) {
+  // String(val).toLowerCase() แปลงเป็น string ตัวเล็กก่อน
+  // รับได้: true, "TRUE", "true", 1
+  return val === true || val === 1 || String(val).toLowerCase() === 'true';
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 4. INIT — เริ่มต้นเมื่อ HTML โหลดครบ
+//
+// DOMContentLoaded = event ที่ browser parse HTML เสร็จแล้ว
+// แต่ยังไม่ได้โหลด image/stylesheet ภายนอก
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', function() {
+  loadStockItems(); // โหลดสต็อกจาก Sheets ทันที
+  loadMenuItems();  // โหลดเมนู POS (สำหรับ dropdown + ปุ่มโหลดจากเมนู)
+  calcPrice();      // คำนวณราคาด้วยค่าเริ่มต้นก่อน
+});
+
+// beforeunload — เตือนก่อนปิด browser หรือ refresh
+// ถ้ามีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+//
+// e.preventDefault() + returnValue = วิธีมาตรฐาน browser สมัยใหม่
+// (ข้อความที่แสดงจะเป็น default ของ browser ไม่ใช่ข้อความที่เราตั้ง)
+window.addEventListener('beforeunload', function(e) {
+  if (hasUnsaved) {
+    e.preventDefault();
+    e.returnValue = ''; // จำเป็นต้องมีสำหรับบาง browser
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// 5. TAB SWITCH — สลับระหว่างแท็บ
+// tabId = 'items' หรือ 'price'
+// btn   = element ปุ่มที่กด
+// ═══════════════════════════════════════════════════════════════
+function switchTab(tabId, btn) {
+  // ลบ active จากปุ่มและ content ทั้งหมด
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+  // เพิ่ม active ให้ปุ่มและ content ที่เลือก
+  btn.classList.add('active');
+  document.getElementById('pane-' + tabId).classList.add('active');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 6. LOAD DATA FROM SHEETS
+// ═══════════════════════════════════════════════════════════════
+
+// loadStockItems — ดึงข้อมูลสต็อกจาก Apps Script
+async function loadStockItems() {
+  try {
+    // fetch = ส่ง HTTP GET ไปขอข้อมูล
+    // await = รอผลก่อนทำต่อ (ไม่บล็อก browser)
+    const res  = await fetch(SCRIPT_URL + '?action=getStock');
+    const data = await res.json(); // แปลง JSON string → JavaScript array
+    // ป้องกันกรณี Sheets ส่งข้อมูลที่ไม่ใช่ array กลับมา
+    stockItems = Array.isArray(data) ? data : [];
+    renderAll(); // วาด accordion
+  } catch(e) {
+    // เชื่อมต่อไม่ได้ (internet ขาด / URL ผิด)
+    showStatus('❌ โหลดสต็อกไม่ได้: ' + e.message, 'error');
+    document.getElementById('accordionRoot').innerHTML =
+      '<div class="empty-box">❌ โหลดข้อมูลไม่ได้<br><small>ตรวจสอบการเชื่อมต่อ internet</small></div>';
+  }
+}
+
+// loadMenuItems — ดึงเมนู POS
+// ใช้สำหรับ: dropdown เครื่องคำนวณ + ปุ่มโหลดจากเมนู
+async function loadMenuItems() {
+  try {
+    const res  = await fetch(SCRIPT_URL + '?action=getMenu');
+    const data = await res.json();
+    menuItems = Array.isArray(data) ? data : [];
+    buildProductDropdown(); // เติม option ใน dropdown เครื่องคำนวณ
+  } catch(e) {
+    // ถ้าโหลดเมนูไม่ได้ก็ไม่ crash — dropdown แค่ว่างไว้
+  }
+}
+
+// buildProductDropdown — สร้าง <option> ใน dropdown เครื่องคำนวณ
+function buildProductDropdown() {
+  const sel = document.getElementById('calcProduct');
+  // ล้าง option เก่าทั้งหมด เหลือแค่ option ว่างตัวแรก
+  while (sel.options.length > 1) sel.remove(1);
+
+  // เพิ่มเฉพาะเมนูที่ active อยู่
+  menuItems
+    .filter(function(m) { return isActive(m.active); }) // ใช้ isActive() ที่เราทำไว้
+    .forEach(function(m) {
+      const opt       = document.createElement('option');
+      opt.value       = m.name;
+      opt.textContent = m.name;
+      sel.appendChild(opt);
+    });
+
+  refreshDropdownCosts(); // อัปเดตต้นทุนใน dropdown
+}
+
+// refreshDropdownCosts — อัปเดต text ใน dropdown ให้แสดงต้นทุน
+// เช่น "เนื้อวัว" → "เนื้อวัว (ต้นทุน ฿8.00/order)"
+function refreshDropdownCosts() {
+  const sel = document.getElementById('calcProduct');
+  Array.from(sel.options).forEach(function(opt) {
+    if (!opt.value) return; // ข้าม option ว่าง
+
+    // หาสินค้าที่ชื่อตรงกับ menuName ใน stockItems
+    const si = stockItems.find(function(s) { return s.menuName === opt.value; });
+    if (si && si.costPerUnit > 0 && si.deductPerOrder > 0) {
+      // คำนวณต้นทุนต่อ order = ราคาต่อหน่วย × จำนวนที่ตัดต่อ order
+      const cost = (parseFloat(si.costPerUnit) * parseFloat(si.deductPerOrder)).toFixed(2);
+      opt.dataset.cost = cost; // เก็บใน dataset เพื่อ autofillCost() ดึงใช้
+      opt.textContent  = (si.displayName || opt.value) + ' (ต้นทุน ฿' + cost + '/order)';
+    }
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 7. renderAll() — วาด accordion ใหม่ทั้งหมด
+//
+// เรียกเมื่อ:
+//   - โหลดข้อมูลเสร็จ
+//   - toggle active switch (เพื่ออัปเดต badge สถานะ)
+//   - เปลี่ยน category หรือ unit (เพื่อจัดกลุ่มใหม่)
+//   - เพิ่ม/ลบสินค้า
+//
+// KEY DECISION: ใช้ INDEX ของ stockItems เป็น DOM key
+//   DOM id = "body-0", "body-1", "chev-0", "row-0" ฯลฯ
+//   ตัวเลขล้วน ไม่มีอักขระพิเศษ → getElementById ทำงาน 100%
+// ═══════════════════════════════════════════════════════════════
+function renderAll() {
+  const root = document.getElementById('accordionRoot');
+  document.getElementById('itemCount').textContent = stockItems.length + ' รายการ';
+
+  // กรณีไม่มีสินค้าเลย
+  if (!stockItems.length) {
+    root.innerHTML = '<div class="empty-box">ยังไม่มีสินค้า<br><small style="color:var(--dim)">กด "โหลดจากเมนู POS" หรือ "＋ เพิ่มสินค้า"</small></div>';
+    return;
+  }
+
+  // ── จัดกลุ่มตาม category ──
+  // Map รักษาลำดับการเพิ่ม key (ต่างจาก plain object)
+  // grouped = { "เนื้อสัตว์": [{item, idx}, ...], "ผัก": [...], ... }
+  const grouped = new Map();
+  stockItems.forEach(function(item, idx) {
+    const cat = item.category || 'ไม่ระบุหมวด';
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat).push({ item: item, idx: idx });
+  });
+
+  // ── ล้าง root แล้วสร้างใหม่ ──
+  root.innerHTML = '';
+
+  grouped.forEach(function(rows, cat) {
+    const emoji = CAT_EMOJI[cat] || '📦';
+
+    // div.cat-group ครอบ header + accordion ของหมวดนี้
+    const group = document.createElement('div');
+    group.className = 'cat-group';
+
+    // หัวหมวด เช่น "🥩 เนื้อสัตว์ (4)"
+    const hdr = document.createElement('div');
+    hdr.className   = 'cat-header';
+    hdr.textContent = emoji + ' ' + cat + ' (' + rows.length + ')';
+    group.appendChild(hdr);
+
+    // กล่องรายการ
+    const catBody = document.createElement('div');
+    catBody.className = 'cat-body';
+
+    // สร้าง row ให้แต่ละสินค้า
+    rows.forEach(function(r) {
+      catBody.appendChild(buildItemRow(r.item, r.idx));
+    });
+
+    group.appendChild(catBody);
+    root.appendChild(group);
+  });
+
+  // ── คืนสถานะ open ที่เคยเปิดอยู่ ──
+  // หลัง renderAll() สร้าง DOM ใหม่ทั้งหมด
+  // ต้องเพิ่ม class .open กลับให้ row ที่เปิดอยู่ก่อน render
+  openSet.forEach(function(idx) {
+    const b = document.getElementById('body-' + idx);
+    const c = document.getElementById('chev-' + idx);
+    if (b) b.classList.add('open');
+    if (c) c.classList.add('open');
+  });
+
+  // ── ใช้ search term ปัจจุบันกรองผลลัพธ์ ──
+  // ป้องกันกรณี search ค้างอยู่ตอน renderAll ถูกเรียก
+  const searchVal = document.getElementById('searchInput').value;
+  if (searchVal) filterBySearch(searchVal);
+
+  refreshDropdownCosts();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 8. buildItemRow() — สร้าง DOM element ของ 1 รายการสินค้า
+//
+// ใช้ createElement ทั้งหมด ไม่ใช้ innerHTML string
+// เพราะ:
+//   - Event listener ผูกกับ element โดยตรง ไม่หลุด
+//   - ไม่มีปัญหา escaping อักขระพิเศษในชื่อสินค้า
+//   - ไม่ต้อง eval code ผ่าน onclick="..." string
+//
+// item = ข้อมูลสินค้า { id, displayName, menuName, ... }
+// idx  = index ใน stockItems (ใช้เป็น DOM key)
+// ═══════════════════════════════════════════════════════════════
+function buildItemRow(item, idx) {
+  const status = getStatus(item); // 'ok' | 'low' | 'critical' | 'inactive'
+
+  // ── WRAPPER ──
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.id        = 'row-' + idx; // ใช้ index ไม่ใช้ item.id
+  // เก็บชื่อสินค้าไว้ใน dataset สำหรับ filterBySearch()
+  row.dataset.name = (item.displayName || item.menuName || '').toLowerCase();
+
+  // ── HEAD — ส่วนที่เห็นตลอด กดเพื่อเปิด/ปิด ──
+  const head = document.createElement('div');
+  head.className = 'item-head';
+  // addEventListener แทน onclick="..." ใน HTML
+  // ข้อดี: ไม่มีปัญหา scoping, ลบ event ได้, ไม่ต้อง escape string
+  head.addEventListener('click', function() {
+    toggleRow(idx); // ส่ง index ไป ไม่ใช่ item.id
+  });
+
+  // ── TOGGLE SWITCH ──
+  const swLabel = document.createElement('label');
+  swLabel.className = 'sw';
+  // สำคัญมาก: หยุด click event ไม่ให้ bubble ขึ้นไปหา head
+  // ถ้าไม่มี stopPropagation() การกด toggle จะทำให้ accordion เปิด/ปิดด้วย
+  swLabel.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+
+  const chkEl = document.createElement('input');
+  chkEl.type    = 'checkbox';
+  chkEl.checked = isActive(item.active); // ใช้ isActive() รองรับทุก format
+  chkEl.addEventListener('change', function() {
+    stockItems[idx].active = chkEl.checked; // อัปเดต state ใน memory
+    markUnsaved(); // แจ้งว่ามีการเปลี่ยนแปลง
+    renderAll();   // render ใหม่เพื่ออัปเดต badge สถานะ
+  });
+
+  const trackEl = document.createElement('span');
+  trackEl.className = 'sw-track';
+  // เปลี่ยนสี track ตามสถานะสต็อก
+  if (status === 'critical') trackEl.classList.add('critical');
+  else if (status === 'low') trackEl.classList.add('low');
+
+  swLabel.appendChild(chkEl);
+  swLabel.appendChild(trackEl);
+
+  // ── INFO — ชื่อสินค้าและข้อมูลพื้นฐาน ──
+  const infoEl = document.createElement('div');
+  infoEl.className = 'head-info';
+
+  const nameEl = document.createElement('div');
+  nameEl.className   = 'head-name';
+  nameEl.textContent = item.displayName || item.menuName || '(ยังไม่มีชื่อ)';
+
+  const metaEl = document.createElement('div');
+  metaEl.className   = 'head-meta';
+  // toLocaleString() ใส่ comma เช่น 1500 → "1,500"
+  const qty = (item.currentQty !== undefined && item.currentQty !== null)
+    ? Number(item.currentQty).toLocaleString() : '0';
+  metaEl.textContent = qty + (item.unit || '') + ' เหลือ · ตัด '
+    + (item.deductPerOrder || 0) + (item.unit || '') + '/order';
+
+  infoEl.appendChild(nameEl);
+  infoEl.appendChild(metaEl);
+
+  // ── BADGE สถานะ ──
+  const badgeEl = document.createElement('span');
+  badgeEl.className   = 'sbadge ' + status;
+  badgeEl.textContent = getStatusLabel(status);
+
+  // ── CHEVRON ▼ — id ใช้ index ──
+  const chevEl = document.createElement('div');
+  chevEl.className   = 'chev';
+  chevEl.id          = 'chev-' + idx; // "chev-0", "chev-1", ...
+  chevEl.textContent = '▼';
+
+  // ประกอบ head
+  head.appendChild(swLabel);
+  head.appendChild(infoEl);
+  head.appendChild(badgeEl);
+  head.appendChild(chevEl);
+
+
+  // ── BODY — ส่วนที่ซ่อน/แสดงได้ — id ใช้ index ──
+  const body = document.createElement('div');
+  body.className = 'item-body';
+  body.id        = 'body-' + idx; // "body-0", "body-1", ...
+
+
+  // ── FIELD GRID ──
+  const grid = document.createElement('div');
+  grid.className = 'fgrid';
+
+
+  // ── helper functions ──
+  // ฟังก์ชันเหล่านี้ซ้อนอยู่ใน buildItemRow เพื่อ access idx ได้
+
+  // mkInput — สร้าง <input> ตาม type ที่กำหนด
+  function mkInput(type, val, ph, attrs) {
+    const el    = document.createElement('input');
+    el.type     = type;
+    el.value    = (val !== undefined && val !== null) ? val : '';
+    el.placeholder = ph || '';
+    if (attrs) {
+      if (attrs.min  !== undefined) el.min  = String(attrs.min);
+      if (attrs.step !== undefined) el.step = String(attrs.step);
+    }
+    return el;
+  }
+
+  // mkSelect — สร้าง <select> จาก array ของ options
+  function mkSelect(options, currentVal) {
+    const el = document.createElement('select');
+    options.forEach(function(opt) {
+      const o       = document.createElement('option');
+      o.value       = opt;
+      o.textContent = opt;
+      if (opt === currentVal) o.selected = true;
+      el.appendChild(o);
+    });
+    return el;
+  }
+
+  // mkField — ห่อ input ด้วย label + hint text
+  // labelText = ข้อความ label
+  // inputEl   = element input/select ที่สร้างไว้แล้ว
+  // hintText  = ข้อความเล็กๆ ใต้ input
+  // warnText  = ป้ายเตือนสีทอง (ถ้ามี) เช่น "⚠️ ต้องตรง"
+  // fullWidth = ขยายเต็มความกว้าง grid
+  function mkField(labelText, inputEl, hintText, warnText, fullWidth) {
+    const f = document.createElement('div');
+    f.className = 'field' + (fullWidth ? ' full' : '');
+
+    const lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    if (warnText) {
+      // เพิ่ม warn-tag หลังชื่อ label
+      const w       = document.createElement('span');
+      w.className   = 'warn-tag';
+      w.textContent = warnText;
+      lbl.appendChild(w);
+    }
+
+    f.appendChild(lbl);
+    f.appendChild(inputEl);
+
+    if (hintText) {
+      const h       = document.createElement('span');
+      h.className   = 'fhint';
+      h.textContent = hintText;
+      f.appendChild(h);
+    }
+    return f;
+  }
+
+
+  // ── สร้าง field ทีละตัว ──
+
+  // 1. ชื่อในสต็อก
+  const iDisplay = mkInput('text', item.displayName, 'ชื่อที่แสดงใน Dashboard');
+  iDisplay.addEventListener('change', function() {
+    stockItems[idx].displayName = iDisplay.value;
+    // อัปเดตชื่อใน head ทันทีโดยไม่ต้อง renderAll()
+    // ประหยัด performance และ focus ไม่หลุด
+    const nameInHead = document.querySelector('#row-' + idx + ' .head-name');
+    if (nameInHead) nameInHead.textContent = iDisplay.value || '(ยังไม่มีชื่อ)';
+    // อัปเดต dataset.name สำหรับ search
+    row.dataset.name = iDisplay.value.toLowerCase();
+    markUnsaved();
+  });
+  grid.appendChild(mkField('ชื่อในสต็อก', iDisplay, 'ชื่อที่แสดงในหน้า stock.html'));
+
+  // 2. ชื่อในเมนู POS (ต้องตรงทุกตัวอักษรเพื่อตัดสต็อกอัตโนมัติ)
+  const iMenu = mkInput('text', item.menuName, 'ต้องตรงกับชื่อในเมนู POS');
+  iMenu.addEventListener('change', function() {
+    stockItems[idx].menuName = iMenu.value;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('ชื่อในเมนู POS', iMenu, 'ตัดสต็อกอัตโนมัติเมื่อมีออเดอร์', '⚠️ ต้องตรง'));
+
+  // 3. หมวด — เปลี่ยนแล้วต้อง renderAll() เพื่อจัดกลุ่มใหม่
+  const sCat = mkSelect(CATEGORIES, item.category);
+  sCat.addEventListener('change', function() {
+    stockItems[idx].category = sCat.value;
+    markUnsaved();
+    renderAll(); // จัดกลุ่มใหม่
+  });
+  grid.appendChild(mkField('หมวด', sCat, ''));
+
+  // 4. หน่วย — เปลี่ยนแล้ว renderAll() เพื่ออัปเดต label และ meta text
+  const sUnit = mkSelect(UNITS, item.unit);
+  sUnit.addEventListener('change', function() {
+    stockItems[idx].unit = sUnit.value;
+    markUnsaved();
+    renderAll();
+  });
+  grid.appendChild(mkField('หน่วย', sUnit, 'g=กรัม · ชิ้น · ml=มิลลิลิตร'));
+
+  // 5. ตัดต่อ 1 order — กี่หน่วยต่อ 1 การสั่ง
+  const iDeduct = mkInput('number', item.deductPerOrder, '0', { min: 0, step: 0.1 });
+  iDeduct.addEventListener('change', function() {
+    stockItems[idx].deductPerOrder = parseFloat(iDeduct.value) || 0;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('ตัดต่อ 1 order (' + (item.unit || '') + ')', iDeduct,
+    'ตัดกี่' + (item.unit || '') + 'ต่อ 1 order'));
+
+  // 6. คงเหลือ — แก้ไขได้เพื่อปรับสต็อกให้ตรงความจริง
+  //    สีตัวเลขเปลี่ยนตามสถานะ: แดง/ทอง/เขียว
+  const qtyColor = status === 'critical' ? 'var(--red)'
+                 : status === 'low'      ? 'var(--gold)'
+                 : 'var(--green)';
+  const iQty = mkInput('number', item.currentQty, '0', { min: 0, step: 0.1 });
+  iQty.style.color = qtyColor;
+  iQty.addEventListener('change', function() {
+    stockItems[idx].currentQty = parseFloat(iQty.value) || 0;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('คงเหลือ (' + (item.unit || '') + ')', iQty, 'แก้ได้เพื่อปรับสต็อก'));
+
+  // 7. แจ้งเตือนเมื่อสต็อกต่ำกว่านี้
+  const iAlert = mkInput('number', item.alertQty, '0', { min: 0, step: 1 });
+  iAlert.addEventListener('change', function() {
+    stockItems[idx].alertQty = parseFloat(iAlert.value) || 0;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('แจ้งเตือนเมื่อ < (' + (item.unit || '') + ')', iAlert,
+    'สีแดงเมื่อสต็อกน้อยกว่านี้'));
+
+  // 8. ต้นทุนต่อหน่วย — ใช้คำนวณกำไรในเครื่องคำนวณราคา
+  const iCost = mkInput('number', item.costPerUnit, '0.000', { min: 0, step: 0.001 });
+  iCost.addEventListener('change', function() {
+    stockItems[idx].costPerUnit = parseFloat(iCost.value) || 0;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('ต้นทุน (฿/' + (item.unit || '') + ')', iCost,
+    'ใช้คำนวณกำไรในแท็บ 💰'));
+
+  // 9. อายุสินค้า — วันที่หมดอายุนับจากวันเติมสต็อก
+  const iExpiry = mkInput('number', item.expiryDays, '0', { min: 0, step: 1 });
+  iExpiry.addEventListener('change', function() {
+    stockItems[idx].expiryDays = parseInt(iExpiry.value) || 0;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('อายุสินค้า (วัน)', iExpiry, '0 = ไม่มีวันหมดอายุ'));
+
+  // 10. ซัพพลายเออร์
+  const iSup = mkInput('text', item.supplier, 'ชื่อร้าน/คนขาย');
+  iSup.addEventListener('change', function() {
+    stockItems[idx].supplier = iSup.value;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('ซัพพลายเออร์', iSup, ''));
+
+  // 11. เบอร์โทร
+  const iPhone = mkInput('tel', item.supplierPhone, '08x-xxx-xxxx');
+  iPhone.addEventListener('change', function() {
+    stockItems[idx].supplierPhone = iPhone.value;
+    markUnsaved();
+  });
+  grid.appendChild(mkField('เบอร์โทร', iPhone, ''));
+
+  body.appendChild(grid);
+
+
+  // ── ACTIONS BAR ──
+  const actions = document.createElement('div');
+  actions.className = 'item-actions';
+
+  // ปุ่มลบ
+  const btnDel = document.createElement('button');
+  btnDel.className   = 'btn-del-item';
+  btnDel.textContent = '🗑️ ลบ';
+  btnDel.addEventListener('click', function() { deleteItem(idx); });
+
+  // ปุ่มบันทึกชิ้นนี้
+  // หมายเหตุ: ส่ง stockItems ทั้งหมดไป Sheets
+  // เพราะ Sheets ต้องการ overwrite ทั้ง sheet ไม่สามารถ update แค่แถวเดียวได้
+  // (ต้องแก้ Apps Script ด้วยถ้าอยากทำ partial update)
+  const btnSv = document.createElement('button');
+  btnSv.className   = 'btn-save-item';
+  btnSv.id          = 'sbtn-' + idx; // "sbtn-0", "sbtn-1", ...
+  btnSv.textContent = '💾 บันทึกชิ้นนี้';
+  btnSv.addEventListener('click', function() { saveItem(idx); });
+
+  actions.appendChild(btnDel);
+  actions.appendChild(btnSv);
+  body.appendChild(actions);
+
+  // ประกอบ row ทั้งหมด
+  row.appendChild(head);
+  row.appendChild(body);
+  return row;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 9. toggleRow() — เปิด/ปิด accordion
+//
+// รับ idx (index ตัวเลข) ไม่ใช่ item.id
+// getElementById('body-0') → หาเจอ 100%
+// ═══════════════════════════════════════════════════════════════
+function toggleRow(idx) {
+  const body = document.getElementById('body-' + idx);
+  const chev = document.getElementById('chev-' + idx);
+  if (!body) return; // กันกรณี element หาไม่เจอ
+
+  if (body.classList.contains('open')) {
+    // เปิดอยู่ → ปิด
+    body.classList.remove('open');
+    if (chev) chev.classList.remove('open');
+    openSet.delete(idx); // ลบออกจาก Set ที่จำสถานะ
+  } else {
+    // ปิดอยู่ → เปิด
+    body.classList.add('open');
+    if (chev) chev.classList.add('open');
+    openSet.add(idx); // เพิ่มเข้า Set
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 10. filterBySearch() — กรองรายการตามคำค้นหา real-time
+//
+// ทำงานโดย: ซ่อน/แสดง .item-row ตาม dataset.name
+// ไม่ได้ลบ DOM — แค่ toggle display ของแต่ละ row
+// ดังนั้นเร็วมาก ไม่ต้อง renderAll()
+//
+// val = string ที่พิมพ์ใน search box
+// ═══════════════════════════════════════════════════════════════
+function filterBySearch(val) {
+  const term = val.toLowerCase().trim(); // ตัดช่องว่างหัวท้าย + ตัวเล็ก
+
+  // วนลูปทุก .item-row และซ่อน/แสดงตาม dataset.name
+  document.querySelectorAll('.item-row').forEach(function(row) {
+    const name    = row.dataset.name || ''; // ชื่อที่เก็บใน data attribute
+    const matched = !term || name.includes(term); // ถ้าไม่มี term → แสดงทั้งหมด
+    // '' = แสดง, 'none' = ซ่อน
+    row.style.display = matched ? '' : 'none';
+  });
+
+  // ตรวจสอบ cat-group ที่ทุก row ซ่อนหมด → ซ่อน group ทั้งหมวด
+  // เพื่อไม่ให้หัวหมวดแสดงอยู่โดยไม่มีรายการ
+  document.querySelectorAll('.cat-group').forEach(function(group) {
+    const hasVisible = group.querySelectorAll('.item-row:not([style*="display: none"])').length > 0;
+    group.style.display = hasVisible ? '' : 'none';
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 11. markUnsaved() — แจ้งว่ามีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+//
+// แสดง:
+//   - จุดสีส้มกระพริบใน header
+//   - ข้อความ "มีการเปลี่ยนแปลง"
+//
+// เคลียร์เมื่อ:
+//   - saveAll() หรือ saveItem() เสร็จสมบูรณ์
+// ═══════════════════════════════════════════════════════════════
+function markUnsaved() {
+  hasUnsaved = true; // flag สำหรับ beforeunload
+  document.getElementById('unsavedDot').classList.add('show');
+  document.getElementById('unsavedLabel').classList.add('show');
+}
+
+function clearUnsaved() {
+  hasUnsaved = false;
+  document.getElementById('unsavedDot').classList.remove('show');
+  document.getElementById('unsavedLabel').classList.remove('show');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 12. STATUS HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+// getStatus — คำนวณสถานะสินค้าจากจำนวนคงเหลือ
+function getStatus(item) {
+  // ใช้ isActive() รองรับทุก format จาก Sheets
+  if (!isActive(item.active)) return 'inactive';
+  const cur   = parseFloat(item.currentQty) || 0;
+  const alert = parseFloat(item.alertQty)   || 0;
+  if (cur <= alert)     return 'critical'; // น้อยกว่าหรือเท่า threshold → แดง
+  if (cur < alert * 2) return 'low';      // น้อยกว่า 2× threshold → เหลือง
+  return 'ok';
+}
+
+function getStatusLabel(s) {
+  // object lookup เร็วกว่า if/else หลายชั้น
+  return { ok:'ปกติ', low:'ใกล้หมด', critical:'เติมด่วน!', inactive:'ปิดอยู่' }[s] || s;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 13. CRUD OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
+// addItem — เพิ่มสินค้าใหม่ (ว่างๆ) และเปิด accordion ทันที
+function addItem() {
+  const newIdx = stockItems.length; // index ของสินค้าที่จะเพิ่มใหม่
+  stockItems.push({
+    id:             'st' + Date.now(), // timestamp เป็น id ชั่วคราว
+    menuName:       '',
+    displayName:    '',
+    category:       'เนื้อสัตว์',
+    unit:           'g',
+    deductPerOrder: 100,
+    currentQty:     0,
+    alertQty:       500,
+    costPerUnit:    0,
+    expiryDays:     0,
+    lastRestockDate:'',
+    supplier:       '',
+    supplierPhone:  '',
+    active:         true
+  });
+
+  openSet.add(newIdx); // เปิด accordion ของสินค้าใหม่ทันที
+  markUnsaved();
+  renderAll();
+
+  // scroll ไปที่ card ใหม่ — ต้องรอ 80ms ให้ DOM render ก่อน
+  setTimeout(function() {
+    const r = document.getElementById('row-' + newIdx);
+    if (r) r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
+}
+
+// deleteItem — ลบสินค้าออกจาก array
+function deleteItem(idx) {
+  const item = stockItems[idx];
+  const name = (item && (item.displayName || item.menuName)) || 'สินค้านี้';
+
+  if (!confirm('ลบ "' + name + '" ออกจากสต็อก?\n(จะมีผลจริงเมื่อกด "บันทึกทั้งหมด")')) return;
+
+  openSet.delete(idx); // ลบ index นี้ออกจาก Set
+
+  // splice(idx, 1) = ลบ 1 element ที่ตำแหน่ง idx
+  stockItems.splice(idx, 1);
+
+  // ── อัปเดต openSet หลังลบ ──
+  // เมื่อลบ index i ออก:
+  //   - index < i → ไม่เปลี่ยน
+  //   - index > i → เลื่อนลง 1 (i+1 กลายเป็น i)
+  //   - index = i → หายไป (ลบแล้ว)
+  const newOpen = new Set();
+  openSet.forEach(function(i) {
+    if (i < idx) newOpen.add(i);       // ไม่เปลี่ยน
+    else if (i > idx) newOpen.add(i - 1); // เลื่อนลง 1
+    // i === idx หายไปแล้ว ไม่ต้องเก็บ
+  });
+  openSet.clear();
+  newOpen.forEach(function(i) { openSet.add(i); });
+
+  markUnsaved();
+  renderAll();
+}
+
+// saveItem — บันทึกสินค้าชิ้นเดียว (แต่ส่งทั้งหมดไป Sheets)
+//
+// ทำไมต้องส่งทั้งหมด?
+//   Apps Script ใช้ action:'saveStock' เขียนทับ Sheet ทั้งใบ
+//   ถ้าส่งแค่ชิ้นเดียว รายการอื่นๆ จะหายหมด
+//   จึงต้องส่ง stockItems ทั้งหมดเสมอ แต่แสดง UX ว่า "บันทึกชิ้นนี้"
+async function saveItem(idx) {
+  const btn = document.getElementById('sbtn-' + idx);
+  // แสดง loading state บนปุ่ม ป้องกันกดซ้ำ
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...'; }
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method:  'POST',
+      // text/plain ป้องกัน CORS preflight ที่ Apps Script ไม่รองรับ
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify({ action: 'saveStock', items: stockItems })
+    });
+    // สำเร็จ — คืนค่าปุ่มหลัง 2 วินาที
+    if (btn) {
+      btn.textContent = '✅ บันทึกแล้ว!';
+      setTimeout(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 บันทึกชิ้นนี้'; }
+      }, 2000);
+    }
+    clearUnsaved(); // เคลียร์สัญญาณ "มีการเปลี่ยนแปลง"
+    refreshDropdownCosts();
+  } catch(e) {
+    if (btn) {
+      btn.disabled    = false;
+      btn.textContent = '❌ ผิดพลาด ลองใหม่';
+      setTimeout(function() { if (btn) btn.textContent = '💾 บันทึกชิ้นนี้'; }, 3000);
+    }
+  }
+}
+
+// saveAll — บันทึกทุกรายการพร้อมกัน (กดปุ่มใน header)
+async function saveAll() {
+  const btn = document.getElementById('btnSaveAll');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...'; }
+  showStatus('⏳ กำลังบันทึก...', 'loading');
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify({ action: 'saveStock', items: stockItems })
+    });
+    if (btn) { btn.disabled = false; btn.textContent = '💾 บันทึกทั้งหมด'; }
+    showStatus('✅ บันทึกสำเร็จทั้งหมด!', 'success');
+    clearUnsaved();
+    refreshDropdownCosts();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 บันทึกทั้งหมด'; }
+    showStatus('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
+  }
+}
+
+// loadFromMenu — โหลดเมนู POS มาสร้างสต็อกอัตโนมัติ
+// เฉพาะเมนูที่ active และยังไม่มีในสต็อก (ไม่สร้างซ้ำ)
+async function loadFromMenu() {
+  const btn  = document.getElementById('btnLoadMenu');
+  const icon = document.getElementById('loadMenuIcon');
+
+  // แสดง loading state บนปุ่ม
+  if (btn)  btn.disabled    = true;
+  if (icon) icon.textContent = '⏳';
+  showStatus('⏳ กำลังโหลดเมนูจาก POS...', 'loading');
+
+  // โหลดเมนูใหม่ถ้ายังไม่มี
+  if (!menuItems.length) await loadMenuItems();
+
+  // คืนค่าปุ่มก่อน (จะได้ไม่ค้างถ้ามี confirm)
+  if (btn)  btn.disabled    = false;
+  if (icon) icon.textContent = '📥';
+
+  // หาเมนูที่ยังไม่มีในสต็อก
+  const existing = stockItems.map(function(s) { return s.menuName; });
+  const newItems = menuItems.filter(function(m) {
+    return isActive(m.active) && !existing.includes(m.name);
+  });
+
+  if (!newItems.length) {
+    showStatus('✅ ทุกเมนูมีในสต็อกแล้ว', 'success');
+    return;
+  }
+
+  if (!confirm('จะเพิ่ม ' + newItems.length + ' รายการจากเมนู POS\n'
+    + '(ที่มีอยู่แล้วจะไม่ถูกเพิ่มซ้ำ)\nดำเนินการต่อ?')) return;
+
+  // เดาหมวด/หน่วย/ค่าตัด จาก type ของเมนู
+  newItems.forEach(function(m) {
+    var category = 'แปรรูป', unit = 'ชิ้น', deduct = 2;
+
+    if (m.type === 'meats')    { category = 'เนื้อสัตว์'; unit = 'g';    deduct = 100; }
+    if (m.type === 'soups')    { category = 'น้ำซุป';      unit = 'ml';   deduct = 500; }
+    if (m.type === 'sauces')   { category = 'น้ำจิ้ม';     unit = 'ml';   deduct = 30;  }
+    if (m.type === 'desserts') { category = 'ของหวาน';     unit = 'ชิ้น'; deduct = 1;   }
+    if (m.cat  === 'ผัก')      { category = 'ผัก';          unit = 'g';    deduct = 80;  }
+    if (m.cat  === 'เห็ด')     { category = 'เห็ด';         unit = 'g';    deduct = 60;  }
+    if (m.cat  === 'เต้าหู้')  { category = 'เต้าหู้';     unit = 'ชิ้น'; deduct = 2;   }
+
+    stockItems.push({
+      // Date.now() + random เพื่อป้องกัน id ซ้ำกรณีเพิ่มหลายชิ้นพร้อมกัน
+      id:             'st' + Date.now() + Math.random().toString(36).slice(2, 6),
+      menuName:       m.name,
+      displayName:    m.name,
+      category:       category,
+      unit:           unit,
+      deductPerOrder: deduct,
+      currentQty:     0,
+      alertQty:       20,
+      costPerUnit:    0,
+      expiryDays:     0,
+      lastRestockDate:'',
+      supplier:       '',
+      supplierPhone:  '',
+      active:         true
+    });
+  });
+
+  markUnsaved();
+  renderAll();
+  showStatus('✅ เพิ่ม ' + newItems.length + ' รายการแล้ว — กด "บันทึกทั้งหมด" เพื่อบันทึก', 'success');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 13. STATUS BAR — แสดงข้อความสถานะใต้ header
+//
+// msg  = ข้อความ
+// type = 'success' | 'error' | 'loading'
+// ═══════════════════════════════════════════════════════════════
+var statusTimer = null; // เก็บ timer ไว้เพื่อ clearTimeout ได้
+
+function showStatus(msg, type) {
+  const el     = document.getElementById('statusBar');
+  el.textContent = msg;
+  el.className   = 'status-bar ' + type + ' show';
+
+  // ล้าง timer เก่าก่อน ป้องกันกรณีเรียก showStatus() ซ้อนกัน
+  if (statusTimer) clearTimeout(statusTimer);
+
+  // ซ่อนอัตโนมัติหลัง 4 วินาที ยกเว้น loading (รอจนเสร็จก่อน)
+  if (type !== 'loading') {
+    statusTimer = setTimeout(function() {
+      el.classList.remove('show');
+    }, 4000);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 14. PRICE CALCULATOR — เครื่องคำนวณราคาขาย
+// ═══════════════════════════════════════════════════════════════
+
+// autofillCost — ดึงต้นทุนจาก dropdown มาใส่ใน input อัตโนมัติ
+function autofillCost() {
+  const sel = document.getElementById('calcProduct');
+  const opt = sel.options[sel.selectedIndex];
+  // dataset.cost ถูกเซ็ตไว้ใน refreshDropdownCosts()
+  if (opt && opt.dataset.cost) {
+    document.getElementById('calcCost').value = opt.dataset.cost;
+    calcPrice(); // คำนวณทันที
+  }
+}
+
+// setPlatform — เลือก platform และตั้ง GP%
+// gp = -1 หมายถึง "กำหนดเอง" → แสดงช่องกรอก
+function setPlatform(gp, btn) {
+  // อัปเดต active class บนปุ่ม
+  document.querySelectorAll('.ptab').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('platformLabel').textContent = btn.textContent;
+
+  const cf = document.getElementById('gpCustomField');
+  if (gp === -1) {
+    // "กำหนดเอง" → แสดงช่องกรอก GP%
+    cf.style.display = 'block';
+    currentGP = parseFloat(document.getElementById('calcGP').value) || 0;
+  } else {
+    cf.style.display = 'none';
+    currentGP = gp; // ใช้ค่าที่ตั้งไว้เลย
+  }
+  calcPrice();
+}
+
+// calcPrice — คำนวณราคาขายที่แนะนำ
+//
+// สูตร: ราคาขาย = ต้นทุนรวม ÷ (1 - GP% - กำไร%)
+//
+// ทำไมต้องหาร ไม่ใช่คูณ?
+//   ถ้าคูณ: ต้นทุน 50 × 1.3 = 65
+//     → Grab หัก 30% = 45.50 → ขาดทุน!
+//   ถ้าหาร: 50 ÷ (1-0.3-0.3) = 50 ÷ 0.4 = 125
+//     → Grab หัก 30% = 87.50, ต้นทุน 50, กำไร 37.50 ✅
+function calcPrice() {
+  const cost   = parseFloat(document.getElementById('calcCost').value)   || 0;
+  const extra  = parseFloat(document.getElementById('calcExtra').value)  || 0;
+  const profit = parseFloat(document.getElementById('calcProfit').value) || 0;
+
+  // อัปเดต currentGP ถ้าช่องกำหนดเองแสดงอยู่
+  if (document.getElementById('gpCustomField').style.display !== 'none') {
+    currentGP = parseFloat(document.getElementById('calcGP').value) || 0;
+  }
+
+  const total = cost + extra;       // ต้นทุนรวม
+  const gpR   = currentGP / 100;   // % → ทศนิยม เช่น 30 → 0.30
+  const profR = profit / 100;
+  const denom = 1 - gpR - profR;   // ตัวหาร
+  const warn  = document.getElementById('calcWarning');
+
+  // ตรวจสอบ: GP + กำไร ต้องไม่เกิน 100%
+  if (denom <= 0) {
+    warn.style.display = 'block';
+    warn.textContent   = '❌ GP (' + currentGP + '%) + กำไร (' + profit + '%) ≥ 100% → เป็นไปไม่ได้!';
+    clearCalcResults();
+    return;
+  }
+  warn.style.display = 'none';
+  if (total <= 0) { clearCalcResults(); return; }
+
+  // คำนวณ
+  const sell    = total / denom;         // ราคาขาย
+  const gpAmt   = sell * gpR;           // เงินที่ GP หัก
+  const wProfit = sell * profR;         // กำไรที่ต้องการ
+  const revenue = sell - gpAmt;         // รายได้จริงหลังหัก GP
+  const aProfit = revenue - total;      // กำไรจริง
+  // toFixed(2) ปัดทศนิยม 2 ตำแหน่ง
+  const aPct    = total > 0 ? (aProfit / total * 100) : 0;
+
+  // แสดงผล
+  document.getElementById('resTotalCost').textContent    = '฿' + total.toFixed(2);
+  document.getElementById('resGP').textContent           = '฿' + gpAmt.toFixed(2) + ' (' + currentGP + '%)';
+  document.getElementById('resWantedProfit').textContent = '฿' + wProfit.toFixed(2);
+  // Math.ceil ปัดขึ้น เช่น 99.3 → 100 (เพื่อไม่ให้ขาดทุน)
+  document.getElementById('resSellPrice').textContent    = '฿' + Math.ceil(sell);
+  document.getElementById('resActualRevenue').textContent= '฿' + revenue.toFixed(2);
+
+  // กำไรจริง — เปลี่ยนสีตามบวก/ลบ
+  const pe = document.getElementById('resActualProfit');
+  pe.textContent = '฿' + aProfit.toFixed(2);
+  pe.className   = 'crv ' + (aProfit >= 0 ? 'profit' : 'loss');
+
+  const pce = document.getElementById('resActualPct');
+  pce.textContent = aPct.toFixed(1) + '%';
+  pce.className   = 'crv ' + (aPct >= 0 ? 'profit' : 'loss');
+}
+
+// clearCalcResults — ล้างผลลัพธ์ทั้งหมดเป็น "—"
+function clearCalcResults() {
+  ['resTotalCost','resGP','resWantedProfit','resSellPrice',
+   'resActualRevenue','resActualProfit','resActualPct'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+}
+
+</script>
+</body>
+</html>
