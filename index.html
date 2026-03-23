@@ -1164,6 +1164,7 @@ function resetPOS() {
   currentStep = 0;
   orderType = null;
   tableNum = null;
+  document.getElementById('adminBtn').style.display = 'flex'; // เพิ่มปุ่ม admin
   document.getElementById('mainLayout').style.display = 'none';
   document.getElementById('headerBadge').style.display = 'none';
   document.getElementById('headerBackBtn').style.display = 'none';
@@ -1191,6 +1192,7 @@ function showWelcome() {
   document.getElementById('orderTypeScreen').classList.remove('show');
   document.getElementById('tableScreen').classList.remove('show');
   document.getElementById('welcomeScreen').classList.add('show');
+  document.getElementById('adminBtn').style.display = 'flex'; //ปุ่มadmin
 }
 
 
@@ -1253,6 +1255,7 @@ function clearDesserts() {
 }
 
 function showTypeSelect() {
+  document.getElementById('adminBtn').style.display = 'none'; // เพิ่มปุ่ม admin
   document.getElementById('welcomeScreen').classList.remove('show');
   document.getElementById('tableScreen').classList.remove('show');
   document.getElementById('headerBackBtn').style.display = 'none';
@@ -1399,5 +1402,28 @@ function choosePay(type) {
     <button id="cancelTableBtn" onclick="animateBtn(this, closeChangeTable)" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text-muted);cursor:pointer;font-family:'Sarabun',sans-serif;font-size:0.95rem">ยกเลิก</button>
   </div>
 </div>
+
+<!-- วางไว้ก่อนปิด </body>
+ เพิ่มปุ่มไปหน้า admin -->
+<a id="adminBtn" href="admin.html" style="
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  text-decoration: none;
+  z-index: 350;
+  transition: all 0.2s;
+" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+   onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
+   title="Admin Panel">⚙️</a>
 </body>
 </html>

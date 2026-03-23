@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  admin.html — หน้า Admin Panel Koiii Shabu v2                ║
+  ║                                                              ║
+  ║  ระบบ Login แบบ B (Apps Script เป็น gate):                   ║
+  ║  - รับ password จากผู้ใช้                                    ║
+  ║  - ส่งไป Apps Script → เช็คกับ Google Sheets                ║
+  ║  - password ไม่มีในไฟล์ HTML เลย → ปลอดภัย                  ║
+  ║  - ถ้าถูก → เก็บ session ใน sessionStorage ตลอดวัน (8 ชม.)  ║
+  ║  - ปิด browser tab → session หมด → ต้อง login ใหม่           ║
+  ║                                                              ║
+  ║  v2 แก้ไข:                                                   ║
+  ║  ✅ เพิ่มปุ่ม 👁 ดู/ซ่อนรหัสผ่าน                            ║
+  ║  ✅ Error message ละเอียดขึ้น (บอก status code + error type) ║
+  ║  (Enter key มีอยู่แล้วตั้งแต่ v1 ไม่ต้องแก้)                 ║
+  ║                                                              ║
+  ║  วิธีตั้งรหัสผ่าน:                                            ║
+  ║  1. เปิด Google Sheets → สร้าง sheet ชื่อ "Config"           ║
+  ║  2. Cell A1: admin_password                                  ║
+  ║  3. Cell B1: รหัสที่ต้องการ เช่น Koiii2025                   ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔐 Admin — Koiii Shabu</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800;900&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   CSS VARIABLES — ตัวแปรสีทั้งหน้า
+   ใช้ธีมเดียวกับทั้งระบบ POS (dark + สีส้ม)
+   ============================================================ */
+:root {
+  --bg:       #0d1117; /* พื้นหลังหลัก — ดำเข้ม */
+  --surface:  #161b22; /* พื้นหลัง header/card — เทาเข้ม */
+  --surface2: #1c2330; /* พื้นหลัง sub-element */
+  --card:     #21262d; /* พื้นหลัง input */
+  --border:   #30363d; /* สีเส้นขอบ */
+  --accent:   #e85d30; /* สีส้มหลักแบรนด์ */
+  --gold:     #f0a830; /* สีทอง */
+  --green:    #3fb950; /* สีเขียว — สำเร็จ */
+  --blue:     #58a6ff; /* สีฟ้า */
+  --red:      #f85149; /* สีแดง — error */
+  --text:     #e6edf3; /* ข้อความหลัก — ขาวนวล */
+  --muted:    #7d8590; /* ข้อความรอง — เทากลาง */
+  --dim:      #484f58; /* ข้อความจาง */
+}
+
+/* ล้างค่า default ของ browser ทุก element */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Sarabun', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh; /* dvh = Dynamic Viewport Height รองรับมือถือ */
+  display: flex;
+  flex-direction: column; /* header บน, main ล่าง */
+}
+
+/* ============================================================
+   HEADER — แถบบนสุด ติดหน้าจอตลอด
+   ============================================================ */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100; /* อยู่เหนือ element อื่นไม่ถูกบัง */
+  flex-shrink: 0; /* ไม่หดตัวเมื่อ main ขยาย */
+}
+.header-logo {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* ปุ่มกลับหน้า POS */
+.btn-back {
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 12px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-back:hover { color: var(--text); border-color: var(--accent); }
+
+/* badge "Admin" สีเขียว — ซ่อนไว้ก่อน แสดงหลัง login */
+.admin-badge {
+  font-size: 0.75rem;
+  color: var(--green);
+  background: rgba(63,185,80,0.1);
+  border: 1px solid rgba(63,185,80,0.25);
+  border-radius: 20px;
+  padding: 3px 10px;
+  display: none; /* JavaScript จะเปลี่ยนเป็น flex */
+  align-items: center;
+  gap: 5px;
+}
+
+/* ปุ่ม Logout สีแดง — ซ่อนไว้ก่อน แสดงหลัง login */
+.btn-logout {
+  font-size: 0.75rem;
+  color: var(--red);
+  background: rgba(248,81,73,0.08);
+  border: 1px solid rgba(248,81,73,0.3);
+  border-radius: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  transition: all 0.2s;
+  display: none; /* JavaScript จะเปลี่ยนเป็น block */
+}
+.btn-logout:hover { background: rgba(248,81,73,0.15); }
+
+/* ============================================================
+   MAIN — พื้นที่เนื้อหาหลัก
+   flex:1 = ขยายเต็มพื้นที่ที่เหลือใต้ header
+   align-items + justify-content:center = จัดกึ่งกลาง
+   ============================================================ */
+main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+/* ============================================================
+   LOGIN SCREEN — หน้าจอใส่รหัสผ่าน
+   ============================================================ */
+#loginScreen {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  animation: fadeUp 0.5s ease both;
+}
+
+/* หม้อลอยขึ้นลง */
+.login-pot {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 0 20px rgba(232,93,48,0.4));
+  animation: floatPot 3s ease-in-out infinite;
+}
+
+.login-title {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+.login-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+/* กล่องฟอร์ม login */
+.login-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: left;
+}
+.login-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   PASSWORD WRAPPER — ครอบ input + ปุ่มดูรหัส
+   position:relative ทำให้ปุ่มดูรหัสวางซ้อนในตำแหน่ง absolute ได้
+   ============================================================ */
+.pw-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+/* input รหัสผ่าน */
+.login-input {
+  width: 100%;
+  padding: 12px 46px 12px 16px;
+  /* padding-right: 46px เผื่อพื้นที่ให้ปุ่มดูรหัสด้านขวา */
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 3px; /* เว้นระยะตัวอักษรให้อ่านง่าย */
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232,93,48,0.15);
+}
+.login-input::placeholder {
+  color: var(--dim);
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   ปุ่ม 👁 ดู/ซ่อนรหัสผ่าน (Toggle Password Visibility)
+   
+   position:absolute = ลอยซ้อนอยู่ในฝั่งขวาของ input
+   top:50% + transform = จัดกึ่งกลางแนวตั้ง
+   right:12px = ห่างจากขอบขวา 12px
+   
+   ทำงานอย่างไร:
+     กด → togglePassword() → เปลี่ยน input type="password" ↔ type="text"
+     type="password" = แสดงเป็น ●●●●
+     type="text"     = แสดงตัวอักษรจริง
+   ============================================================ */
+.btn-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%); /* จัดกึ่งกลางแนวตั้งแน่นอน */
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--dim);
+  padding: 4px;
+  transition: color 0.2s;
+  line-height: 1;
+  /* user-select:none ป้องกันการเลือก emoji ตอน double-click */
+  user-select: none;
+}
+.btn-eye:hover { color: var(--muted); }
+/* เมื่อรหัสแสดงอยู่ เปลี่ยนสีให้รู้ว่า active */
+.btn-eye.showing { color: var(--accent); }
+
+/* ปุ่ม Login */
+.btn-login {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #c84020);
+  /* linear-gradient ไล่สีจากส้มสว่างไปส้มเข้ม */
+  color: white;
+  font-family: 'Prompt', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+.btn-login:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(232,93,48,0.35);
+}
+.btn-login:active { transform: scale(0.98); }
+/* disabled = กำลัง loading ป้องกันกดซ้ำ */
+.btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* ============================================================
+   ERROR BOX — กล่องแสดง error message
+   
+   ซ่อนด้วย display:none ก่อน
+   JavaScript เพิ่ม class .show เพื่อแสดง
+   
+   v2: แสดง error ได้ 2 ระดับ:
+     - .error-main = ข้อความหลัก (สีแดง ตัวใหญ่)
+     - .error-detail = รายละเอียดเพิ่ม (สีจาง ตัวเล็ก)
+       เช่น "HTTP 403: Script ไม่ได้ตั้งค่า Deploy เป็น Anyone"
+   ============================================================ */
+.error-box {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(248,81,73,0.1);
+  border: 1px solid rgba(248,81,73,0.25);
+  display: none; /* ซ่อนไว้ก่อน */
+}
+.error-box.show {
+  display: block;
+  animation: shake 0.4s ease; /* สั่นตอนแสดง error */
+}
+.error-main {
+  color: var(--red);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.error-detail {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* กล่อง loading (ซ่อนไว้ก่อน) */
+.login-loading {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+  display: none;
+}
+.login-loading.show { display: block; }
+
+/* ============================================================
+   ADMIN PANEL — หน้าหลังจาก login สำเร็จ
+   ซ่อนไว้ก่อน JavaScript จะแสดงเมื่อ login ผ่าน
+   ============================================================ */
+#adminPanel {
+  display: none;
+  width: 100%;
+  max-width: 800px;
+  animation: fadeUp 0.4s ease both;
+}
+
+.panel-title {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.panel-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+/* ============================================================
+   MENU GRID — ตารางปุ่มเมนูหลังบ้านทั้งหมด
+   
+   Desktop: 3 คอลัมน์
+   มือถือ (≤600px): 2 คอลัมน์
+   มือถือเล็กมาก (≤380px): 1 คอลัมน์
+   ============================================================ */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (max-width: 600px) { .menu-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 380px) { .menu-grid { grid-template-columns: 1fr; } }
+
+/* การ์ดเมนูแต่ละปุ่ม */
+.menu-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 16px;
+  text-decoration: none;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  /* cubic-bezier นี้ = animation เด้งนิดหน่อยตอน hover */
+  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden; /* ตัดเส้นสีที่ยื่นเกินขอบ */
+}
+
+/* เส้นสีบนสุดของการ์ด ใช้ ::before pseudo-element */
+.menu-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 14px 14px 0 0;
+  transition: height 0.2s; /* เส้นขยายตอน hover */
+}
+
+.menu-card:hover {
+  transform: translateY(-4px); /* ยกขึ้น 4px */
+  border-color: rgba(255,255,255,0.12);
+}
+.menu-card:hover::before { height: 5px; } /* เส้นหนาขึ้นตอน hover */
+
+/* สีเส้นและเงาของแต่ละปุ่ม */
+.menu-card.c-orange::before { background: var(--accent); }
+.menu-card.c-green::before  { background: var(--green);  }
+.menu-card.c-blue::before   { background: var(--blue);   }
+.menu-card.c-gold::before   { background: var(--gold);   }
+.menu-card.c-purple::before { background: #bc8cff;       }
+
+.menu-card.c-orange:hover { box-shadow: 0 8px 30px rgba(232,93,48,0.15);   border-color: rgba(232,93,48,0.3); }
+.menu-card.c-green:hover  { box-shadow: 0 8px 30px rgba(63,185,80,0.15);   border-color: rgba(63,185,80,0.3); }
+.menu-card.c-blue:hover   { box-shadow: 0 8px 30px rgba(88,166,255,0.15);  border-color: rgba(88,166,255,0.3); }
+.menu-card.c-gold:hover   { box-shadow: 0 8px 30px rgba(240,168,48,0.15);  border-color: rgba(240,168,48,0.3); }
+.menu-card.c-purple:hover { box-shadow: 0 8px 30px rgba(188,140,255,0.15); border-color: rgba(188,140,255,0.3); }
+
+/* icon emoji ขนาดใหญ่ */
+.card-icon { font-size: 2rem; }
+
+/* ชื่อและคำอธิบาย */
+.card-info { flex: 1; }
+.card-name {
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.card-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+
+/* ลูกศร ↗ มุมขวาล่าง เคลื่อนไหวตอน hover */
+.card-arrow {
+  font-size: 0.9rem;
+  color: var(--dim);
+  align-self: flex-end;
+  transition: transform 0.2s, color 0.2s;
+}
+.menu-card:hover .card-arrow {
+  transform: translate(3px, -3px); /* เลื่อนขวา-บน */
+  color: var(--muted);
+}
+
+/* แถวข้อมูลเพิ่มเติม ด้านล่าง grid */
+.quick-info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.quick-info .info-icon { font-size: 1.1rem; flex-shrink: 0; }
+.quick-info strong { color: var(--text); }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+/* หม้อลอยขึ้นลง */
+@keyframes floatPot {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+/* element เลื่อนขึ้นมาตอนโหลด */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* สั่น (shake) ตอน password ผิด */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-8px); }
+  40%       { transform: translateX(8px); }
+  60%       { transform: translateX(-6px); }
+  80%       { transform: translateX(6px); }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header>
+  <div class="header-logo">🍲 Koiii Shabu</div>
+  <div class="header-right">
+    <!-- badge แสดงเมื่อ login สำเร็จ -->
+    <div class="admin-badge" id="adminBadge">
+      <span>✓</span><span>Admin</span>
+    </div>
+    <!-- ปุ่ม Logout — เรียก logout() -->
+    <button class="btn-logout" id="btnLogout" onclick="logout()">
+      🚪 ออกจากระบบ
+    </button>
+    <a href="index.html" class="btn-back">← กลับหน้า POS</a>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============================================================
+       LOGIN SCREEN
+       ============================================================ -->
+  <div id="loginScreen">
+
+    <span class="login-pot">🍲</span>
+    <div class="login-title">ADMIN</div>
+    <div class="login-sub">ใส่รหัสผ่านเพื่อเข้าสู่ระบบจัดการ</div>
+
+    <div class="login-box">
+      <label class="login-label" for="passwordInput">🔑 รหัสผ่าน</label>
+
+      <!--
+        .pw-wrap = wrapper สำหรับวางปุ่ม 👁 ซ้อนอยู่บน input
+      -->
+      <div class="pw-wrap">
+
+        <!--
+          type="password" = แสดงเป็น ●●●● (เปลี่ยนได้ด้วยปุ่ม 👁)
+          onkeydown = กด Enter แทนปุ่ม Login ได้เลย
+          autocomplete="current-password" = บอก browser ว่านี่คือ password field
+        -->
+        <input
+          type="password"
+          id="passwordInput"
+          class="login-input"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') login()"
+        >
+
+        <!--
+          ปุ่มดู/ซ่อนรหัสผ่าน
+          onclick เรียก togglePassword() เพื่อเปลี่ยน input type
+          title = tooltip เมื่อ hover บน desktop
+        -->
+        <button
+          class="btn-eye"
+          id="btnEye"
+          type="button"
+          onclick="togglePassword()"
+          title="ดู/ซ่อนรหัสผ่าน"
+        >👁</button>
+
+      </div><!-- /.pw-wrap -->
+
+      <!-- ปุ่ม Login — onclick เรียก login() -->
+      <button class="btn-login" id="btnLogin" onclick="login()">
+        🔐 เข้าสู่ระบบ
+      </button>
+
+      <!--
+        ERROR BOX — แสดงเมื่อ login ผิดหรือเกิด error
+        มี 2 ส่วน:
+          .error-main   = ข้อความหลัก สั้นๆ อ่านง่าย
+          .error-detail = รายละเอียดเพิ่มเติม (แสดงเฉพาะตอน network error)
+      -->
+      <div class="error-box" id="errorBox">
+        <div class="error-main"   id="errorMain"></div>
+        <div class="error-detail" id="errorDetail" style="display:none"></div>
+      </div>
+
+      <!-- Loading — แสดงขณะรอ Apps Script ตอบกลับ -->
+      <div class="login-loading" id="loginLoading">
+        ⏳ กำลังตรวจสอบ...
+      </div>
+
+    </div><!-- /.login-box -->
+  </div><!-- /#loginScreen -->
+
+
+  <!-- ============================================================
+       ADMIN PANEL — แสดงหลัง login สำเร็จ
+       ============================================================ -->
+  <div id="adminPanel">
+
+    <div class="panel-title">⚙️ Admin Panel</div>
+    <div class="panel-sub">ยินดีต้อนรับ เลือกหน้าที่ต้องการจัดการ</div>
+
+    <div class="menu-grid">
+
+      <!-- Dashboard — ดูยอดขาย -->
+      <a href="dashboard.html" class="menu-card c-orange">
+        <div class="card-icon">📊</div>
+        <div class="card-info">
+          <div class="card-name">Dashboard</div>
+          <div class="card-desc">ยอดขาย, สถิติ<br>รายวัน/รายเดือน</div>
+        </div>
+        <div class="card-arrow">↗</div>
+      </a>
+
+      <!-- Kitchen — หน้าจอครัว -->
+      <a href="kitchen.html" class="menu-card c-green">
+        <div class="card-icon">🍳</div>
+        <div class="card-info">
+          <div class="card-name">หน้าจอครัว</div>
+          <div class="card-desc">ออเดอร์ real-time<br>สำหรับพนักงานครัว</div>
+        </div>
+        <div class="card-arrow">↗</div>
+      </a>
+
+      <!-- Menu Editor — จัดการเมนู -->
+      <a href="menu-editor.html" class="menu-card c-blue">
+        <div class="card-icon">🍽️</div>
+        <div class="card-info">
+          <div class="card-name">จัดการเมนู</div>
+          <div class="card-desc">เพิ่ม/แก้ไข/ซ่อน<br>รายการอาหาร</div>
+        </div>
+        <div class="card-arrow">↗</div>
+      </a>
+
+      <!-- Stock Editor — ตั้งค่าสต็อก -->
+      <a href="stock-editor.html" class="menu-card c-gold">
+        <div class="card-icon">⚙️</div>
+        <div class="card-info">
+          <div class="card-name">ตั้งค่าสต็อก</div>
+          <div class="card-desc">หน่วย, ต้นทุน<br>ค่าตัดต่อ order</div>
+        </div>
+        <div class="card-arrow">↗</div>
+      </a>
+
+      <!-- Stock — ดูสต็อก -->
+      <a href="stock.html" class="menu-card c-purple">
+        <div class="card-icon">📦</div>
+        <div class="card-info">
+          <div class="card-name">ดูสต็อก</div>
+          <div class="card-desc">จำนวนคงเหลือ<br>เติม/บันทึกของเสีย</div>
+        </div>
+        <div class="card-arrow">↗</div>
+      </a>
+
+    </div><!-- /.menu-grid -->
+
+    <!-- คำแนะนำเปลี่ยนรหัสผ่าน -->
+    <div class="quick-info">
+      <span class="info-icon">💡</span>
+      <span>
+        เปลี่ยนรหัสผ่านได้ที่
+        <strong>Google Sheets → sheet "Config" → cell B1</strong>
+      </span>
+    </div>
+
+  </div><!-- /#adminPanel -->
+
+</main>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  JAVASCRIPT — Admin Panel v2                                 ║
+// ║                                                              ║
+// ║  ขั้นตอนการทำงานทั้งหมด:                                     ║
+// ║  1. เปิดหน้า → checkSession() ตรวจ sessionStorage           ║
+// ║  2. มี session ที่ยังไม่หมดอายุ → showPanel() ข้าม login    ║
+// ║  3. ไม่มี session → showLogin() ให้ใส่รหัสผ่าน              ║
+// ║  4. กด login / Enter → login() ส่งไป Apps Script            ║
+// ║  5. Apps Script ตอบ {ok:true} → saveSession() + showPanel() ║
+// ║  6. Apps Script ตอบ {ok:false} → showError() (รหัสผิด)     ║
+// ║  7. Network error → showError() พร้อม detail (เช่น HTTP 403)║
+// ║  8. กด logout → clearSession() + showLogin()                ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+
+// URL ของ Google Apps Script
+// ใช้ URL เดียวกับทั้งระบบ POS
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+
+// ชื่อ key ที่ใช้เก็บ session ใน sessionStorage
+// sessionStorage ล้างตัวเองอัตโนมัติเมื่อปิด browser tab
+const SESSION_KEY = 'koiii_admin_auth';
+
+// อายุ session = 8 ชั่วโมง (หน่วย millisecond)
+// 8 * 60 * 60 * 1000 = 28,800,000 ms
+const SESSION_TTL = 8 * 60 * 60 * 1000;
+
+
+// ═══════════════════════════════════════════════════════════════
+// INIT — เริ่มต้นเมื่อ HTML โหลดครบ
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', function() {
+  checkSession(); // ตรวจดู session ก่อนทุกครั้ง
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// checkSession() — ตรวจสอบว่ามี session ที่ยังใช้ได้อยู่ไหม
+//
+// sessionStorage vs localStorage:
+//   sessionStorage = ล้างตัวเองเมื่อปิด browser tab (ปลอดภัยกว่า)
+//   localStorage   = เก็บไว้ตลอดจนกว่าจะลบเอง
+//   → ใช้ sessionStorage เพราะ admin ควรต้อง login ใหม่ทุกวัน
+//
+// โครงสร้าง session ที่เก็บ:
+//   { loggedIn: true, loginTime: 1234567890 }
+//   loginTime = Date.now() ตอนที่ login (millisecond)
+// ═══════════════════════════════════════════════════════════════
+function checkSession() {
+  try {
+    // sessionStorage.getItem คืน null ถ้าไม่มี key นั้น
+    var raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) {
+      // ไม่มี session เลย → แสดง login
+      showLogin();
+      return;
+    }
+
+    // JSON.parse แปลง string → object
+    var session = JSON.parse(raw);
+
+    // คำนวณว่าผ่านมาแล้วกี่ millisecond ตั้งแต่ login
+    // Date.now() = เวลาปัจจุบันเป็น millisecond (นับจาก 1 Jan 1970)
+    var elapsed = Date.now() - session.loginTime;
+
+    if (session.loggedIn && elapsed < SESSION_TTL) {
+      // session ยังไม่หมดอายุ → ข้าม login ไปแสดง panel เลย
+      showPanel();
+    } else {
+      // session หมดอายุ (เกิน 8 ชั่วโมง) หรือข้อมูลผิดรูปแบบ
+      clearSession();
+      showLogin();
+    }
+  } catch(e) {
+    // JSON.parse error หรือ sessionStorage ไม่รองรับ
+    showLogin(); // ปลอดภัยกว่าคือแสดง login เสมอ
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// togglePassword() — สลับแสดง/ซ่อนรหัสผ่าน
+//
+// เปลี่ยน input type ระหว่าง "password" ↔ "text"
+//   type="password" = แสดงเป็น ●●●● (ซ่อนรหัส)
+//   type="text"     = แสดงตัวอักษรจริง (เห็นรหัส)
+//
+// เปลี่ยน emoji ของปุ่มด้วย:
+//   ซ่อนอยู่ = 👁 (กดเพื่อดู)
+//   แสดงอยู่ = 🙈 (กดเพื่อซ่อน)
+// ═══════════════════════════════════════════════════════════════
+function togglePassword() {
+  var input  = document.getElementById('passwordInput');
+  var btnEye = document.getElementById('btnEye');
+
+  if (input.type === 'password') {
+    // กำลังซ่อน → เปลี่ยนเป็นแสดง
+    input.type        = 'text';
+    btnEye.textContent = '🙈'; // emoji บอกว่า "กดเพื่อซ่อน"
+    btnEye.classList.add('showing'); // เพิ่ม class เพื่อเปลี่ยนสี (CSS)
+  } else {
+    // กำลังแสดง → เปลี่ยนกลับเป็นซ่อน
+    input.type        = 'password';
+    btnEye.textContent = '👁'; // emoji บอกว่า "กดเพื่อดู"
+    btnEye.classList.remove('showing');
+  }
+
+  // Focus กลับไปที่ input หลังกดปุ่ม
+  // เพราะ browser อาจย้าย focus ไปที่ปุ่มแทน
+  input.focus();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// login() — รับ password → ส่งไปเช็คที่ Apps Script
+//
+// ขั้นตอน:
+//   1. อ่านและ validate password
+//   2. แสดง loading + disable ปุ่มป้องกันกดซ้ำ
+//   3. POST ไป Apps Script พร้อม { action, password }
+//   4. เช็ค HTTP status ก่อน (ป้องกัน error 403/404 ที่ไม่ใช่ JSON)
+//   5. Parse JSON → ตรวจสอบ data.ok
+//   6. ok=true → saveSession + showPanel
+//   7. ok=false → showError พร้อมข้อความที่ชัดเจน
+// ═══════════════════════════════════════════════════════════════
+async function login() {
+  var input    = document.getElementById('passwordInput');
+  var btnLogin = document.getElementById('btnLogin');
+  var loadEl   = document.getElementById('loginLoading');
+
+  // ตัด whitespace หัวท้าย เผื่อเผลอกด space
+  var password = input.value.trim();
+
+  // validate: ไม่ส่ง password ว่าง
+  if (!password) {
+    showError('กรุณาใส่รหัสผ่านก่อนครับ', '');
+    input.focus();
+    return;
+  }
+
+  // ── แสดง loading state ──
+  btnLogin.disabled    = true;
+  btnLogin.textContent = '⏳ กำลังตรวจสอบ...';
+  hideError();
+  loadEl.classList.add('show');
+
+  try {
+    // ── ส่ง POST ไป Apps Script ──
+    //
+    // ทำไมใช้ POST ไม่ใช่ GET?
+    //   GET = password โผล่ใน URL เช่น ?password=Koiii2025
+    //   URL ถูก log ได้ง่าย (browser history, server log, proxy)
+    //   POST = password อยู่ใน request body ไม่โผล่ใน URL
+    //
+    // Content-Type: text/plain ป้องกัน CORS preflight
+    //   Apps Script ไม่รองรับ preflight ของ application/json
+    //   text/plain เป็น "simple request" ไม่มี preflight
+    var response = await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify({
+        action:   'checkPassword', // บอก Apps Script ว่าต้องการทำอะไร
+        password: password         // รหัสที่ผู้ใช้พิมพ์
+      })
+    });
+
+    // ── v2: ตรวจสอบ HTTP Status Code ก่อน ──
+    //
+    // ปัญหาเดิม: ถ้า Apps Script ยังไม่ได้ Deploy เป็น "Anyone"
+    //   fetch จะได้ HTTP 403 (Forbidden) หรือ 401 (Unauthorized)
+    //   แต่ response.json() จะ throw error เพราะ response ไม่ใช่ JSON
+    //   ทำให้ catch ได้แค่ "Failed to fetch" ไม่รู้ว่าผิดที่อะไร
+    //
+    // วิธีแก้: เช็ค response.ok ก่อน
+    //   response.ok = true ถ้า status 200-299
+    //   response.ok = false ถ้า status 4xx/5xx
+    //
+    // response.status = ตัวเลข HTTP status code เช่น 200, 403, 404, 500
+    if (!response.ok) {
+      // HTTP error — บอกผู้ใช้ว่าผิดที่อะไร
+      var detail = getHttpErrorDetail(response.status);
+      showError(
+        '⚠️ เชื่อมต่อไม่ได้ (HTTP ' + response.status + ')',
+        detail
+      );
+      return; // หยุดไม่ต้อง parse JSON ต่อ
+    }
+
+    // ── Parse JSON response ──
+    var data = await response.json();
+
+    // ── ตรวจผล ──
+    if (data.ok === true) {
+      // ✅ รหัสถูก
+      saveSession();
+      showPanel();
+    } else {
+      // ❌ รหัสผิด
+      // data.error = ข้อความ error จาก Apps Script (ถ้ามี)
+      // เช่น "ยังไม่ได้ตั้งรหัสผ่าน กรุณาใส่ใน cell B1"
+      showError(
+        '❌ รหัสผ่านไม่ถูกต้อง',
+        data.error || '' // ถ้า Apps Script ส่ง error message มา → แสดงด้วย
+      );
+      input.value = ''; // ล้าง input เพื่อให้พิมพ์ใหม่
+      // ซ่อนรหัสถ้ากำลังแสดงอยู่ (reset ปุ่มดูรหัสด้วย)
+      var ei = document.getElementById('passwordInput');
+      if (ei.type === 'text') togglePassword();
+      input.focus();
+    }
+
+  } catch(e) {
+    // ── Network Error ──
+    //
+    // เกิดเมื่อ:
+    //   - Internet ขาด → "Failed to fetch"
+    //   - CORS block    → "NetworkError"
+    //   - Timeout       → "AbortError"
+    //   - JSON parse error (response ไม่ใช่ JSON ที่ถูกต้อง)
+    //
+    // e.message = ข้อความ error ของ JavaScript
+    // เช่น "Failed to fetch", "NetworkError when attempting to fetch resource"
+    //
+    // แสดงรายละเอียดให้รู้ว่าเกิดอะไรขึ้น ช่วยแก้ปัญหาได้เร็วขึ้น
+    showError(
+      '⚠️ เชื่อมต่อ Apps Script ไม่ได้',
+      getNetworkErrorDetail(e)
+    );
+    console.error('Login network error:', e);
+
+  } finally {
+    // ── คืนค่าปุ่มเสมอ ──
+    // finally = ทำงานทุกครั้งไม่ว่าจะ success หรือ error
+    btnLogin.disabled    = false;
+    btnLogin.textContent = '🔐 เข้าสู่ระบบ';
+    loadEl.classList.remove('show');
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// getHttpErrorDetail() — แปลง HTTP status code → คำอธิบายภาษาไทย
+//
+// ช่วยให้รู้ว่าต้องแก้ไขอะไรเมื่อเกิด error
+// ═══════════════════════════════════════════════════════════════
+function getHttpErrorDetail(status) {
+  var details = {
+    // 401 = Unauthorized: ไม่มีสิทธิ์เข้าถึง
+    401: 'Apps Script ต้องการ authentication\nตรวจสอบ: Deploy → Execute as "Me" หรือ "Anyone"',
+    // 403 = Forbidden: มีสิทธิ์ไม่พอ
+    403: 'Apps Script ไม่อนุญาตการเข้าถึง\nตรวจสอบ: Deploy → Who has access → "Anyone"',
+    // 404 = Not Found: URL ผิดหรือถูกลบ
+    404: 'URL ของ Apps Script ไม่ถูกต้อง\nตรวจสอบ SCRIPT_URL ในไฟล์ admin.html',
+    // 429 = Too Many Requests: ส่ง request เยอะเกินไป
+    429: 'ส่ง request มากเกินไป รอสักครู่แล้วลองใหม่',
+    // 500 = Internal Server Error: Apps Script มี error ข้างใน
+    500: 'Apps Script เกิดข้อผิดพลาด\nตรวจสอบ Execution logs ใน Apps Script Editor',
+  };
+  // คืนคำอธิบายตาม status code ถ้าไม่มีในลิสต์ → ข้อความ default
+  return details[status] || 'HTTP Error ' + status + ': ลองใหม่อีกครั้ง';
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// getNetworkErrorDetail() — แปลง JavaScript Error → คำอธิบาย
+//
+// ช่วยให้รู้ว่าเกิดอะไรขึ้นเมื่อ fetch() throw error
+// ═══════════════════════════════════════════════════════════════
+function getNetworkErrorDetail(err) {
+  var msg = err.message || '';
+
+  // เช็คประเภท error จาก message
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+    return 'ตรวจสอบ:\n① Internet ยังเชื่อมต่ออยู่ไหม\n② SCRIPT_URL ในไฟล์ถูกต้องไหม\n③ Apps Script Deploy เป็น "Anyone" แล้วหรือยัง';
+  }
+  if (msg.includes('AbortError') || msg.includes('timeout')) {
+    return 'Apps Script ตอบสนองช้าเกินไป\nลองรอสักครู่แล้วกด Login ใหม่';
+  }
+  if (msg.includes('JSON') || msg.includes('SyntaxError')) {
+    return 'Apps Script ส่งข้อมูลผิดรูปแบบ\nตรวจสอบว่า function checkPassword() อยู่ใน Apps Script แล้ว';
+  }
+  // ถ้าไม่ตรงกับ case ไหน → แสดง error message ดิบๆ
+  return msg || 'Unknown error';
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// showError() — แสดง error box
+//
+// main   = ข้อความหลัก เช่น "❌ รหัสผ่านไม่ถูกต้อง"
+// detail = รายละเอียดเพิ่ม เช่น "ตรวจสอบ Apps Script Deploy..."
+//          ถ้าว่าง → ซ่อน detail section
+// ═══════════════════════════════════════════════════════════════
+function showError(main, detail) {
+  var box       = document.getElementById('errorBox');
+  var mainEl    = document.getElementById('errorMain');
+  var detailEl  = document.getElementById('errorDetail');
+
+  mainEl.textContent = main;
+
+  if (detail) {
+    // มีรายละเอียด → แสดง
+    detailEl.textContent = detail;
+    detailEl.style.display = 'block';
+  } else {
+    // ไม่มีรายละเอียด → ซ่อน (ไม่ให้เปลืองพื้นที่)
+    detailEl.textContent   = '';
+    detailEl.style.display = 'none';
+  }
+
+  // Reset animation shake ด้วยการลบ class แล้วเพิ่มใหม่
+  // ถ้าไม่ลบก่อน animation จะไม่เล่นซ้ำตอน error ครั้งที่สอง
+  box.classList.remove('show');
+  // setTimeout 10ms รอให้ browser "paint" ก่อน แล้วค่อยเพิ่ม class
+  // เพราะถ้าเพิ่มทันทีหลังลบ browser จะรวมเป็น paint เดียว → animation ไม่ทำงาน
+  setTimeout(function() { box.classList.add('show'); }, 10);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// hideError() — ซ่อน error box
+// เรียกก่อนทุกครั้งที่เริ่ม login ใหม่
+// ═══════════════════════════════════════════════════════════════
+function hideError() {
+  document.getElementById('errorBox').classList.remove('show');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// saveSession() — บันทึก session หลัง login สำเร็จ
+//
+// เก็บใน sessionStorage:
+//   loggedIn:  true
+//   loginTime: timestamp ตอน login (millisecond)
+//
+// ทำไม sessionStorage ไม่ใช่ localStorage?
+//   localStorage ค้างอยู่จนกว่าจะลบเอง → เปิดคอมวันถัดไปยังไม่ต้อง login
+//   sessionStorage ล้างตัวเองเมื่อปิด tab → ปลอดภัยกว่า
+//   เหมาะกับร้านอาหารที่เปิดใช้แล้วปิดทุกวัน
+// ═══════════════════════════════════════════════════════════════
+function saveSession() {
+  var session = {
+    loggedIn:  true,
+    loginTime: Date.now() // เวลาปัจจุบัน millisecond
+  };
+  // JSON.stringify แปลง object → string เพราะ sessionStorage รับแค่ string
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// clearSession() — ลบ session
+// เรียกตอน logout หรือ session หมดอายุ
+// ═══════════════════════════════════════════════════════════════
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// logout() — ออกจากระบบ
+// ═══════════════════════════════════════════════════════════════
+function logout() {
+  if (!confirm('ออกจากระบบ Admin ใช่ไหมครับ?')) return;
+  clearSession();
+  showLogin();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// showPanel() — แสดงหน้า Admin Panel หลัง login สำเร็จ
+// ═══════════════════════════════════════════════════════════════
+function showPanel() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminPanel').style.display  = 'block';
+  document.getElementById('adminBadge').style.display  = 'flex';
+  document.getElementById('btnLogout').style.display   = 'block';
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// showLogin() — แสดงหน้า Login (กลับจาก panel หรือหลัง logout)
+// ═══════════════════════════════════════════════════════════════
+function showLogin() {
+  document.getElementById('adminPanel').style.display  = 'none';
+  document.getElementById('loginScreen').style.display = 'block';
+  document.getElementById('adminBadge').style.display  = 'none';
+  document.getElementById('btnLogout').style.display   = 'none';
+
+  // ล้าง input และ error
+  document.getElementById('passwordInput').value = '';
+  hideError();
+
+  // ถ้ากำลังแสดงรหัสอยู่ → reset กลับเป็นซ่อน
+  var pwInput = document.getElementById('passwordInput');
+  if (pwInput.type === 'text') togglePassword();
+
+  // Focus ที่ input ทันทีหลัง 100ms
+  // รอ 100ms ให้ animation fadeUp เสร็จก่อน ถึงค่อย focus
+  setTimeout(function() {
+    document.getElementById('passwordInput').focus();
+  }, 100);
+}
+
+</script>
+</body>
+</html>
