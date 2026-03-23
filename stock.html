@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<!--
+  stock.html — หน้า Dashboard สต็อกสินค้า Koiii Shabu
+
+  v2 — แก้ไขตาม Gemini review:
+  ✅ Fix 1: Validation      — ป้องกันกรอกตัวเลขติดลบหรือว่าง
+  ✅ Fix 2: Loading State   — ปิดปุ่มและแสดง spinner ขณะส่งข้อมูล
+  ✅ Fix 3: Toast Message   — แจ้งสำเร็จ/ล้มเหลวหลังบันทึก
+  ✅ Fix 4: Search/Filter   — ช่องค้นหาชื่อสินค้าแบบ real-time
+-->
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📦 Koiii Stock</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   CSS VARIABLES — ตัวแปรสีที่ใช้ร่วมกันทั้งไฟล์
+   แก้ที่นี่จุดเดียวเพื่อเปลี่ยนธีมสีทั้งหน้า
+   ============================================================ */
+:root {
+  --bg:      #0d1117; /* พื้นหลังหลัก — ดำเข้ม */
+  --surface: #161b22; /* พื้นหลัง header/card — เทาเข้ม */
+  --surface2:#1c2330; /* พื้นหลัง sub-element */
+  --card:    #21262d; /* พื้นหลัง input ใน modal */
+  --border:  #30363d; /* สีเส้นขอบ */
+  --accent:  #e85d30; /* สีส้มแดง — สีหลักแบรนด์ */
+  --gold:    #f0a830; /* สีทอง — ชื่อสินค้าใน modal */
+  --green:   #3fb950; /* สีเขียว — สต็อกปกติ / สำเร็จ */
+  --blue:    #58a6ff; /* สีฟ้า — จำนวนรวม */
+  --red:     #f85149; /* สีแดง — เติมด่วน / error */
+  --purple:  #bc8cff; /* สีม่วง — ใกล้หมดอายุ */
+  --text:    #e6edf3; /* สีข้อความหลัก — ขาวนวล */
+  --muted:   #7d8590; /* สีข้อความรอง — เทากลาง */
+  --dim:     #484f58; /* สีข้อความจาง — เทาเข้ม */
+}
+
+/* ล้างค่า default ของ browser ทุก element */
+* { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  font-family:'Sarabun', sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100dvh; /* dvh = Dynamic Viewport Height รองรับมือถือที่ address bar เลื่อนได้ */
+}
+
+/* ============================================================
+   HEADER — แถบด้านบน ติดหน้าจอตลอด (sticky)
+   position:sticky + top:0 = ติดด้านบนตลอดเมื่อ scroll
+   ============================================================ */
+header {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 16px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100;
+}
+.header-logo { font-family:'Prompt',sans-serif; font-size:1rem; font-weight:800; color:var(--accent); }
+.header-right { display:flex; align-items:center; gap:8px; }
+
+.btn-link {
+  font-size:0.75rem; color:var(--muted);
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:8px; padding:5px 10px;
+  text-decoration:none; transition:all 0.2s; white-space:nowrap;
+}
+.btn-link:hover { color:var(--text); border-color:var(--accent); }
+.last-update { font-size:0.68rem; color:var(--dim); }
+
+/* ============================================================
+   ✅ Fix 3 — TOAST NOTIFICATION
+   
+   Toast คือกล่องแจ้งเตือนที่โผล่ขึ้นมาชั่วคราวแล้วหายไปเอง
+   วางอยู่มุมขวาล่าง (position:fixed)
+   
+   วิธีทำงาน:
+     ปกติ → opacity:0 + translateY(20px) = มองไม่เห็น อยู่ล่างๆ
+     เมื่อมี class "show" → opacity:1 + translateY(0) = โผล่ขึ้นมา
+     transition ทำให้เคลื่อนไหวเนียน (0.3s)
+   
+   ทำไมใช้ opacity แทน display:none?
+     display:none ทำ CSS transition ไม่ได้
+     opacity:0 ยังอยู่ใน DOM แต่มองไม่เห็น → animate ได้
+   ============================================================ */
+.toast {
+  position:fixed;     /* ลอยอยู่เหนือทุกอย่าง ไม่ขยับตาม scroll */
+  bottom:24px;
+  right:24px;
+  z-index:9999;       /* สูงกว่า modal (200) และ header (100) */
+  padding:12px 20px;
+  border-radius:10px;
+  font-size:0.85rem; font-weight:600;
+  font-family:'Sarabun', sans-serif;
+  max-width:300px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  /* สถานะเริ่มต้น: ซ่อนอยู่ */
+  opacity:0;
+  transform:translateY(20px); /* เริ่มอยู่ต่ำกว่าตำแหน่งปกติ 20px */
+  transition:opacity 0.3s ease, transform 0.3s ease;
+  pointer-events:none; /* ไม่รับ click เมื่อซ่อนอยู่ */
+}
+/* เมื่อ JavaScript เพิ่ม class "show" → โผล่ขึ้นมา */
+.toast.show {
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+/* สีตามประเภท */
+.toast.success { background:var(--green); color:white; }
+.toast.error   { background:var(--red);   color:white; }
+.toast.warning { background:var(--gold);  color:#111; }
+
+/* ============================================================
+   MAIN
+   ============================================================ */
+main { padding:14px; max-width:1200px; margin:0 auto; }
+
+/* ============================================================
+   SUMMARY CARDS — 4 การ์ดตัวเลขสรุปด้านบน
+   CSS Grid Responsive:
+     มือถือ: 2 คอลัมน์ (default)
+     desktop (≥600px): 4 คอลัมน์
+   ============================================================ */
+.summary-grid {
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:10px; margin-bottom:16px;
+}
+@media (min-width:600px) {
+  .summary-grid { grid-template-columns:repeat(4, 1fr); }
+}
+.summary-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px;
+  position:relative; /* จำเป็นสำหรับ ::before ที่ใช้ position:absolute */
+  overflow:hidden;   /* ตัดแถบสีที่ยื่นเกินขอบ */
+  animation:fadeUp 0.4s ease both;
+}
+/* แถบสีบนสุดของการ์ด — ใช้ ::before pseudo-element
+   content:'' = สร้าง element ว่างๆ เอาไว้ใส่สีพื้นหลัง */
+.summary-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+}
+.summary-card.total::before    { background:var(--blue); }
+.summary-card.ok::before       { background:var(--green); }
+.summary-card.low::before      { background:var(--gold); }
+.summary-card.critical::before { background:var(--red); }
+
+.summary-icon  { font-size:1.4rem; margin-bottom:5px; }
+.summary-label { font-size:0.7rem; color:var(--muted); margin-bottom:3px; }
+.summary-value { font-family:'Prompt',sans-serif; font-size:1.4rem; font-weight:700; }
+.summary-value.blue   { color:var(--blue); }
+.summary-value.green  { color:var(--green); }
+.summary-value.yellow { color:var(--gold); }
+.summary-value.red    { color:var(--red); }
+
+/* ============================================================
+   FILTER BAR + SEARCH BOX
+   display:flex + flex-wrap:wrap = ขึ้นบรรทัดใหม่ได้ถ้าหน้าจอแคบ
+   ============================================================ */
+.filter-bar {
+  display:flex; gap:6px; margin-bottom:14px;
+  flex-wrap:wrap; align-items:center;
+}
+
+/* ปุ่มกรองหมวด */
+.cat-tab {
+  padding:5px 12px; border-radius:20px;
+  border:1px solid var(--border); background:var(--surface2);
+  color:var(--muted); cursor:pointer;
+  font-family:'Sarabun',sans-serif; font-size:0.75rem; transition:all 0.2s;
+}
+/* ปุ่มที่เลือกอยู่ → พื้นหลังสีส้ม */
+.cat-tab.active { background:var(--accent); border-color:var(--accent); color:white; font-weight:600; }
+/* :not(.active) = ทำเฉพาะปุ่มที่ไม่ active */
+.cat-tab:hover:not(.active) { border-color:var(--accent); color:var(--text); }
+
+/* ============================================================
+   ✅ Fix 4 — SEARCH BOX ค้นหาชื่อสินค้า
+   
+   อยู่ขวาสุดของ filter-bar ด้วย margin-left:auto บน .search-wrap
+   เมื่อผู้ใช้พิมพ์ → JavaScript กรองการ์ดทันที (real-time)
+   ไม่ต้อง request เพิ่ม เพราะกรองจาก allItems ที่โหลดมาแล้ว
+   ============================================================ */
+.search-wrap {
+  margin-left:auto; /* ดันไปชิดขวาสุดของ flex container */
+  display:flex; align-items:center; gap:6px;
+}
+/* wrapper ของ input + icon เพื่อวาง icon ซ้อนบน input */
+.search-box { position:relative; }
+
+/* icon แว่นขยาย — วางซ้อนซ้ายของ input */
+.search-icon {
+  position:absolute;
+  left:9px; top:50%;
+  transform:translateY(-50%); /* จัดกึ่งกลางแนวตั้ง */
+  font-size:0.7rem; color:var(--dim);
+  pointer-events:none; /* ไม่รับ click ป้องกันบัง input */
+}
+.search-input {
+  padding:5px 10px 5px 28px; /* padding-left 28px เผื่อ icon */
+  border-radius:20px;
+  border:1px solid var(--border); background:var(--surface2);
+  color:var(--text);
+  font-family:'Sarabun',sans-serif; font-size:0.75rem;
+  width:155px; transition:all 0.3s;
+}
+/* ขยายเมื่อ focus เพื่อให้พิมพ์สะดวกขึ้น */
+.search-input:focus { outline:none; border-color:var(--accent); width:190px; background:var(--card); }
+.search-input::placeholder { color:var(--dim); }
+
+.btn-refresh {
+  padding:5px 10px; border-radius:8px;
+  border:1px solid var(--border); background:var(--surface2);
+  color:var(--muted); cursor:pointer; font-size:0.8rem; transition:all 0.2s;
+}
+.btn-refresh:hover { border-color:var(--blue); color:var(--blue); }
+
+/* ============================================================
+   STOCK GRID — ตารางการ์ดสินค้า
+   auto-fill: ใส่การ์ดให้เต็มแถวอัตโนมัติ
+   minmax(200px, 1fr): กว้างอย่างน้อย 200px, ขยายได้เต็ม 1fr
+   ============================================================ */
+.stock-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+  gap:10px; margin-bottom:20px;
+}
+@media (max-width:480px) {
+  .stock-grid { grid-template-columns:repeat(2, 1fr); }
+}
+
+/* ============================================================
+   STOCK CARD — การ์ดสินค้าแต่ละชิ้น
+   ============================================================ */
+.stock-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden;
+  animation:fadeUp 0.4s ease both;
+  transition:border-color 0.2s, box-shadow 0.2s;
+}
+/* สีขอบตามสถานะ */
+.stock-card.status-ok       { border-color:var(--border); }
+.stock-card.status-low      { border-color:rgba(240,168,48,0.5); }
+.stock-card.status-critical { border-color:rgba(248,81,73,0.6); box-shadow:0 0 0 2px rgba(248,81,73,0.1); }
+
+.card-top { padding:10px 12px 6px; display:flex; align-items:flex-start; justify-content:space-between; }
+.item-name { font-size:0.82rem; font-weight:600; color:var(--text); line-height:1.3; flex:1; }
+
+/* badge สถานะ */
+.status-badge { font-size:0.6rem; padding:2px 6px; border-radius:8px; white-space:nowrap; flex-shrink:0; margin-left:6px; }
+.status-badge.ok       { background:rgba(63,185,80,0.12);  color:var(--green); border:1px solid rgba(63,185,80,0.3); }
+.status-badge.low      { background:rgba(240,168,48,0.12); color:var(--gold);  border:1px solid rgba(240,168,48,0.3); }
+.status-badge.critical { background:rgba(248,81,73,0.12);  color:var(--red);   border:1px solid rgba(248,81,73,0.3); }
+.status-badge.expiring { background:rgba(188,140,255,0.12);color:var(--purple);border:1px solid rgba(188,140,255,0.3); }
+
+/* progress bar แสดงสัดส่วนสต็อกที่เหลือ */
+.progress-wrap { padding:0 12px 6px; }
+.progress-bar  { height:5px; background:var(--surface2); border-radius:10px; overflow:hidden; }
+.progress-fill { height:100%; border-radius:10px; transition:width 0.8s ease; }
+.progress-fill.ok       { background:var(--green); }
+.progress-fill.low      { background:var(--gold); }
+.progress-fill.critical { background:var(--red); }
+
+/* ตัวเลขสต็อกที่เหลือ */
+.card-qty { padding:2px 12px 8px; display:flex; align-items:baseline; gap:4px; }
+.qty-current { font-family:'Prompt',sans-serif; font-size:1.2rem; font-weight:700; }
+.qty-current.ok       { color:var(--green); }
+.qty-current.low      { color:var(--gold); }
+.qty-current.critical { color:var(--red); }
+.qty-unit  { font-size:0.72rem; color:var(--muted); }
+.qty-alert { font-size:0.65rem; color:var(--dim); margin-left:auto; }
+
+/* คำเตือนใกล้หมดอายุ */
+.expiry-warn { padding:2px 12px 6px; font-size:0.65rem; color:var(--purple); display:flex; align-items:center; gap:4px; }
+
+/* ปุ่มใต้การ์ด */
+.card-actions { padding:6px 8px; display:flex; gap:5px; border-top:1px solid var(--border); }
+.btn-restock {
+  flex:1; padding:5px 0; border-radius:6px; border:none;
+  background:rgba(63,185,80,0.12); color:var(--green);
+  cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.72rem; font-weight:600; transition:all 0.2s;
+}
+.btn-restock:hover { background:rgba(63,185,80,0.25); }
+.btn-waste {
+  flex:1; padding:5px 0; border-radius:6px; border:none;
+  background:rgba(248,81,73,0.08); color:var(--red);
+  cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.72rem; transition:all 0.2s;
+}
+.btn-waste:hover { background:rgba(248,81,73,0.2); }
+
+/* ============================================================
+   LOG TABLE — ตารางประวัติสต็อก
+   ============================================================ */
+.log-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:20px; }
+.log-wrap-title { padding:12px 16px; border-bottom:1px solid var(--border); font-family:'Prompt',sans-serif; font-size:0.88rem; font-weight:600; color:var(--accent); }
+.log-inner { overflow-x:auto; } /* scroll แนวนอนบนมือถือ */
+.log-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.log-table th { text-align:left; padding:7px 10px; background:var(--surface2); color:var(--muted); border-bottom:1px solid var(--border); font-weight:600; white-space:nowrap; }
+.log-table td { padding:7px 10px; border-bottom:1px solid var(--border); }
+.log-table tr:last-child td { border-bottom:none; }
+.log-table tr:hover td { background:var(--surface2); }
+
+/* badge ประเภทรายการ */
+.log-type { display:inline-block; padding:2px 7px; border-radius:6px; font-size:0.65rem; font-weight:700; }
+.log-type.sale    { background:rgba(88,166,255,0.12);  color:var(--blue); }
+.log-type.restock { background:rgba(63,185,80,0.12);   color:var(--green); }
+.log-type.waste   { background:rgba(248,81,73,0.12);   color:var(--red); }
+.log-type.adjust  { background:rgba(188,140,255,0.12); color:var(--purple); }
+.qty-pos { color:var(--green); font-weight:600; }
+.qty-neg { color:var(--red);   font-weight:600; }
+
+/* ============================================================
+   MODAL — popup เติมสต็อก / ของเสีย
+   display:none → ซ่อน, .show → display:flex → แสดง
+   ============================================================ */
+.overlay {
+  display:none; position:fixed; inset:0;
+  /* inset:0 = top:0 right:0 bottom:0 left:0 ย่อรวมกัน */
+  background:rgba(0,0,0,0.75); z-index:200;
+  align-items:center; justify-content:center;
+}
+.overlay.show { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:16px; padding:24px; width:90%; max-width:360px;
+  animation:popIn 0.22s ease; /* เด้งขึ้นมา */
+}
+.modal h3 { font-family:'Prompt',sans-serif; color:var(--accent); margin-bottom:14px; text-align:center; }
+.modal-sub { text-align:center; font-size:0.88rem; color:var(--gold); font-weight:600; margin-bottom:14px; }
+.modal-label { font-size:0.8rem; color:var(--muted); margin-bottom:5px; display:block; }
+.modal-input {
+  width:100%; padding:9px 12px; border-radius:8px;
+  border:1px solid var(--border); background:var(--card);
+  color:var(--text); font-family:'Sarabun',sans-serif; font-size:0.9rem;
+  margin-bottom:6px; /* ลดลงจาก 10px เพราะมี error div ต่อมา */
+  transition:border-color 0.2s;
+}
+.modal-input:focus { outline:none; border-color:var(--accent); }
+
+/* ============================================================
+   ✅ Fix 1 — INPUT ERROR MESSAGE
+   
+   กล่องข้อความแจ้งเตือนใต้ input เมื่อ validation ไม่ผ่าน
+   ซ่อนด้วย display:none, แสดงเมื่อ JavaScript เพิ่ม class "show"
+   ============================================================ */
+.input-error {
+  display:none; /* ซ่อนไว้ก่อน */
+  font-size:0.72rem; color:var(--red);
+  margin-bottom:8px; padding:5px 8px;
+  background:rgba(248,81,73,0.08);
+  border-radius:6px; border-left:3px solid var(--red);
+}
+.input-error.show { display:block; } /* แสดงเมื่อ validate ไม่ผ่าน */
+
+.modal-actions { display:flex; gap:8px; margin-top:14px; }
+
+/* ปุ่มยืนยัน */
+.btn-confirm {
+  flex:1; padding:10px; border-radius:9px;
+  border:none; background:var(--green); color:white;
+  font-family:'Sarabun',sans-serif; font-size:0.88rem; font-weight:600;
+  cursor:pointer; transition:all 0.2s;
+}
+.btn-confirm:hover  { filter:brightness(1.1); }
+.btn-confirm.danger { background:var(--red); }
+
+/* ============================================================
+   ✅ Fix 2 — DISABLED STATE ขณะส่งข้อมูล
+   
+   :disabled หรือ [disabled] = CSS selector สำหรับ element ที่ disabled
+   opacity:0.5 = จางลง บอกว่า "ยังทำงานอยู่ รอก่อน"
+   pointer-events:none = ป้องกัน click ทุกกรณี (แม้ opacity ไม่ได้บอก)
+   ============================================================ */
+.btn-confirm:disabled { opacity:0.55; cursor:not-allowed; pointer-events:none; }
+.btn-cancel:disabled  { opacity:0.55; cursor:not-allowed; pointer-events:none; }
+
+/* ปุ่มยกเลิก */
+.btn-cancel {
+  flex:1; padding:10px; border-radius:9px;
+  border:1px solid var(--border); background:transparent;
+  color:var(--muted); font-family:'Sarabun',sans-serif; font-size:0.88rem; cursor:pointer;
+}
+.btn-cancel:hover { border-color:var(--red); color:var(--red); }
+
+/* ============================================================
+   LOADING / EMPTY STATE
+   ============================================================ */
+.loading { text-align:center; padding:40px; color:var(--muted); font-size:0.85rem; }
+/* .spin หมุนด้วย animation spin */
+.loading .spin { display:inline-block; font-size:2rem; animation:spin 1.5s linear infinite; margin-bottom:8px; }
+.empty { text-align:center; padding:30px; color:var(--dim); font-size:0.82rem; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes popIn  { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header>
+  <div class="header-logo">📦 Koiii Stock</div>
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate"></span>
+    <a href="stock-editor.html" class="btn-link">⚙️ จัดการสต็อก</a>
+    <a href="index.html"        class="btn-link">← POS</a>
+  </div>
+</header>
+
+<main>
+
+  <!-- SUMMARY CARDS — JavaScript อัปเดตตัวเลขใน id ต่างๆ -->
+  <div class="summary-grid">
+    <div class="summary-card total">
+      <div class="summary-icon">📦</div>
+      <div class="summary-label">สินค้าทั้งหมด</div>
+      <div class="summary-value blue" id="sumTotal">—</div>
+    </div>
+    <div class="summary-card ok">
+      <div class="summary-icon">✅</div>
+      <div class="summary-label">สต็อกปกติ</div>
+      <div class="summary-value green" id="sumOk">—</div>
+    </div>
+    <div class="summary-card low">
+      <div class="summary-icon">⚠️</div>
+      <div class="summary-label">ใกล้หมด</div>
+      <div class="summary-value yellow" id="sumLow">—</div>
+    </div>
+    <div class="summary-card critical">
+      <div class="summary-icon">🚨</div>
+      <div class="summary-label">เติมด่วน!</div>
+      <div class="summary-value red" id="sumCritical">—</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       FILTER BAR + SEARCH BOX (✅ Fix 4)
+       ============================================================ -->
+  <div class="filter-bar">
+    <!-- ปุ่มกรองหมวด — onclick ส่ง (ชื่อหมวด, element ตัวเอง) ไปให้ filterAndSearch() -->
+    <button class="cat-tab active" onclick="filterAndSearch('ทั้งหมด',this)">ทั้งหมด</button>
+    <button class="cat-tab" onclick="filterAndSearch('เนื้อสัตว์',this)">🥩 เนื้อสัตว์</button>
+    <button class="cat-tab" onclick="filterAndSearch('ผัก',this)">🥬 ผัก</button>
+    <button class="cat-tab" onclick="filterAndSearch('เห็ด',this)">🍄 เห็ด</button>
+    <button class="cat-tab" onclick="filterAndSearch('เต้าหู้',this)">🟨 เต้าหู้</button>
+    <button class="cat-tab" onclick="filterAndSearch('แปรรูป',this)">🍢 แปรรูป</button>
+    <button class="cat-tab" onclick="filterAndSearch('ของหวาน',this)">🍰 ของหวาน</button>
+    <button class="cat-tab" onclick="filterAndSearch('น้ำซุป',this)">🍲 น้ำซุป</button>
+    <button class="cat-tab" onclick="filterAndSearch('น้ำจิ้ม',this)">🥜 น้ำจิ้ม</button>
+
+    <!-- ✅ Fix 4: Search Box — margin-left:auto ดันให้ชิดขวา -->
+    <div class="search-wrap">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <!-- oninput = ทำงานทุกครั้งที่พิมพ์ ไม่รอ Enter
+             ต่างจาก onchange = รอจนออกจาก input -->
+        <input type="text" class="search-input" id="searchInput"
+               placeholder="ค้นหาสินค้า..."
+               oninput="filterAndSearch(currentCat, null)">
+      </div>
+      <button class="btn-refresh" onclick="loadAll()" title="รีเฟรช">🔄</button>
+    </div>
+  </div>
+
+  <!-- STOCK GRID — JavaScript inject การ์ดตรงนี้ -->
+  <div class="stock-grid" id="stockGrid">
+    <div style="grid-column:1/-1" class="loading">
+      <span class="spin">📦</span><br>กำลังโหลดสต็อก...
+    </div>
+  </div>
+
+  <!-- LOG TABLE — ประวัติ 50 รายการล่าสุด -->
+  <div class="log-wrap">
+    <div class="log-wrap-title">📋 ประวัติล่าสุด (50 รายการ)</div>
+    <div class="log-inner">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>วันที่</th><th>เวลา</th><th>สินค้า</th>
+            <th>ประเภท</th><th>จำนวน</th><th>คงเหลือ</th><th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody id="logBody">
+          <tr><td colspan="7" class="loading"><span class="spin">📦</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ============================================================
+     MODAL: เติมสต็อก
+     ============================================================ -->
+<div class="overlay" id="restockOverlay">
+  <div class="modal">
+    <h3>➕ เติมสต็อก</h3>
+    <div class="modal-sub" id="restockItemName"></div>
+
+    <label class="modal-label">จำนวนที่เติม (<span id="restockUnit"></span>)</label>
+    <!-- min="0.01" = HTML5 ป้องกันตัวเลขน้อยกว่านี้ (ชั้นแรก)
+         oninput = ล้าง error ทันทีที่เริ่มพิมพ์ใหม่ -->
+    <input type="number" class="modal-input" id="restockQty"
+           placeholder="0" min="0.01" step="0.1"
+           oninput="clearInputError('restockQtyError')">
+    <!-- ✅ Fix 1: error message ซ่อนอยู่ แสดงเมื่อ validate ไม่ผ่าน -->
+    <div class="input-error" id="restockQtyError">⚠️ กรุณาใส่จำนวนที่มากกว่า 0</div>
+
+    <label class="modal-label">หมายเหตุ (ไม่บังคับ)</label>
+    <input type="text" class="modal-input" id="restockNote" placeholder="เช่น ซื้อจากตลาด">
+
+    <div class="modal-actions">
+      <!-- ✅ Fix 2: id สำหรับ JavaScript disable ขณะส่งข้อมูล -->
+      <button class="btn-cancel"  id="restockCancelBtn"  onclick="closeModal('restockOverlay')">ยกเลิก</button>
+      <button class="btn-confirm" id="restockConfirmBtn" onclick="confirmRestock()">✅ ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: บันทึกของเสีย
+     ============================================================ -->
+<div class="overlay" id="wasteOverlay">
+  <div class="modal">
+    <h3>🗑️ บันทึกของเสีย/สูญหาย</h3>
+    <div class="modal-sub" id="wasteItemName" style="color:var(--red)"></div>
+
+    <label class="modal-label">จำนวน (<span id="wasteUnit"></span>)</label>
+    <input type="number" class="modal-input" id="wasteQty"
+           placeholder="0" min="0.01" step="0.1"
+           oninput="clearInputError('wasteQtyError')">
+    <!-- ✅ Fix 1: error message สำหรับ waste -->
+    <div class="input-error" id="wasteQtyError">⚠️ กรุณาใส่จำนวนที่มากกว่า 0</div>
+
+    <label class="modal-label">หมายเหตุ</label>
+    <input type="text" class="modal-input" id="wasteNote" placeholder="เช่น เน่าเสีย, หล่น, หมดอายุ">
+
+    <div class="modal-actions">
+      <button class="btn-cancel"          id="wasteCancelBtn"  onclick="closeModal('wasteOverlay')">ยกเลิก</button>
+      <button class="btn-confirm danger"  id="wasteConfirmBtn" onclick="confirmWaste()">🗑️ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ✅ Fix 3: TOAST ELEMENT
+     วางนอก main เพื่อให้ position:fixed ทำงานได้ถูกต้อง
+     JavaScript จะเขียนข้อความและเพิ่ม class "show" ที่นี่
+     ============================================================ -->
+<div class="toast" id="toastMsg"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+
+// ============================================================
+// STATE — ตัวแปรเก็บสถานะของหน้า
+// ============================================================
+let allItems     = []; // สต็อกทั้งหมดที่โหลดมาจาก Sheets
+let currentCat   = 'ทั้งหมด'; // หมวดที่กำลังดูอยู่ตอนนี้
+let activeItemId = null;       // id สินค้าที่กำลังเปิด modal อยู่
+let toastTimer   = null;       // timer ของ toast (เก็บไว้เพื่อ clear ได้)
+
+// ============================================================
+// ✅ Fix 3: showToast — แสดง toast notification
+//
+// msg      = ข้อความที่จะแสดง
+// type     = 'success' | 'error' | 'warning' → กำหนดสี
+// duration = นานกี่ milliseconds ก่อนหาย (default = 3000ms = 3 วินาที)
+//
+// วิธีทำงาน:
+//   1. ใส่ข้อความ + class สีลงใน element
+//   2. เพิ่ม class "show" หลัง 10ms → CSS transition โผล่ขึ้น
+//   3. setTimeout รอ duration ms → ลบ class "show" → จางหาย
+//   4. clearTimeout ป้องกันกรณีเรียก showToast() ซ้ำก่อน toast เก่าหาย
+//
+// ทำไมต้องรอ 10ms ก่อนเพิ่ม class "show"?
+//   Browser ต้อง "paint" element ก่อน ถึงจะทำ CSS transition ได้
+//   ถ้าเปลี่ยน className และเพิ่ม "show" ในบรรทัดเดียวกัน
+//   browser อาจจัดรวมเป็น paint เดียว → transition ไม่ทำงาน
+// ============================================================
+function showToast(msg, type = 'success', duration = 3000) {
+  const toast = document.getElementById('toastMsg');
+
+  // ล้าง class เก่าทั้งหมด แล้วใส่ class ใหม่
+  // การทำแบบนี้ป้องกันสีค้างจากการเรียกครั้งก่อน
+  toast.className  = `toast ${type}`;
+  toast.textContent = msg;
+
+  // รอ 10ms ให้ browser paint ก่อน แล้วค่อยเพิ่ม "show"
+  setTimeout(() => toast.classList.add('show'), 10);
+
+  // ล้าง timer เก่าก่อน ป้องกันกรณีเรียกซ้อนกัน
+  if (toastTimer) clearTimeout(toastTimer);
+
+  // ตั้ง timer ซ่อน toast หลัง duration ms
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+    // รอ transition เสร็จ (300ms) แล้วค่อยล้างข้อความ
+    setTimeout(() => { toast.textContent = ''; toast.className = 'toast'; }, 350);
+  }, duration);
+}
+
+// ============================================================
+// ✅ Fix 1: validateQty — ตรวจสอบค่า qty ที่กรอก
+//
+// inputId  = id ของ input element
+// errorId  = id ของ div ที่แสดง error message
+//
+// คืนค่า: number ที่ถูกต้อง หรือ null ถ้า validate ไม่ผ่าน
+//
+// ทำไมต้องตรวจสอบใน JavaScript ทั้งที่ HTML มี min="0.01"?
+//   HTML validation ทำงานได้เฉพาะกับ <form> submit เท่านั้น
+//   เราใช้ onclick ปุ่มธรรมดา ไม่ใช่ form submit
+//   → ต้องเช็คเองใน JavaScript เสมอ
+// ============================================================
+function validateQty(inputId, errorId) {
+  const input    = document.getElementById(inputId);
+  const errorDiv = document.getElementById(errorId);
+  const raw      = input.value; // string ที่ผู้ใช้พิมพ์
+
+  const qty = parseFloat(raw);
+  // ตรวจสอบ 3 กรณีที่ไม่ถูกต้อง:
+  // raw === ''  = ไม่ได้พิมพ์อะไรเลย
+  // isNaN(qty) = พิมพ์ตัวอักษร หรือ string ที่แปลงเป็นตัวเลขไม่ได้
+  // qty <= 0   = พิมพ์ 0 หรือติดลบ
+  if (raw === '' || isNaN(qty) || qty <= 0) {
+    errorDiv.classList.add('show');          // แสดง error message
+    input.style.borderColor = 'var(--red)'; // เส้นขอบ input แดง
+    input.focus();                           // โฟกัสกลับ input
+    return null;  // คืน null = ไม่ผ่าน
+  }
+
+  // ผ่าน: ซ่อน error, คืนค่า borderColor เดิม
+  errorDiv.classList.remove('show');
+  input.style.borderColor = '';
+  return qty; // คืน number ที่ถูกต้อง
+}
+
+// clearInputError — ล้าง error state ทันทีที่ผู้ใช้เริ่มพิมพ์ใหม่
+// เรียกจาก oninput ของ input element
+// errorId = 'restockQtyError' หรือ 'wasteQtyError'
+function clearInputError(errorId) {
+  document.getElementById(errorId)?.classList.remove('show');
+  // ล้างสีขอบแดง: ตัด 'Error' ออกจาก errorId เพื่อได้ inputId
+  // เช่น 'restockQtyError' → 'restockQty'
+  const inputId = errorId.replace('Error', '');
+  const input   = document.getElementById(inputId);
+  if (input) input.style.borderColor = '';
+}
+
+// ============================================================
+// ✅ Fix 2: setLoading — เปิด/ปิด loading state บนปุ่ม
+//
+// confirmBtnId = id ของปุ่มยืนยัน (จะเปลี่ยนข้อความเป็น "กำลังบันทึก...")
+// cancelBtnId  = id ของปุ่มยกเลิก (จะ disable ป้องกันปิด modal กลางคัน)
+// isLoading    = true = เริ่มโหลด, false = โหลดเสร็จแล้ว
+// ============================================================
+function setLoading(confirmBtnId, cancelBtnId, isLoading) {
+  const confirmBtn = document.getElementById(confirmBtnId);
+  const cancelBtn  = document.getElementById(cancelBtnId);
+  if (isLoading) {
+    confirmBtn.disabled    = true;
+    confirmBtn.textContent = '⏳ กำลังบันทึก...';
+    if (cancelBtn) cancelBtn.disabled = true;
+  } else {
+    confirmBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+  }
+}
+
+// ============================================================
+// loadAll — โหลดข้อมูลทั้งหมดพร้อมกัน
+//
+// Promise.all([a, b]) = ส่ง request ทั้งสองพร้อมกัน รอให้เสร็จทั้งคู่
+// เร็วกว่าทำทีละอัน เพราะไม่ต้องรอ a เสร็จก่อนถึงจะส่ง b
+// ============================================================
+async function loadAll() {
+  await Promise.all([loadStock(), loadLog()]);
+  document.getElementById('lastUpdate').textContent =
+    'อัปเดต ' + new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+}
+
+// ============================================================
+// loadStock — ดึงข้อมูลสต็อกจาก Sheets
+// ============================================================
+async function loadStock() {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getStock`);
+    allItems  = await res.json();
+    // กรองและค้นหาตาม state ปัจจุบัน
+    // false = ไม่อัปเดต active tab (เพราะผู้ใช้ไม่ได้กดปุ่ม)
+    filterAndSearch(currentCat, null, false);
+    renderSummary();
+  } catch(e) {
+    document.getElementById('stockGrid').innerHTML =
+      '<div style="grid-column:1/-1" class="empty">❌ โหลดไม่ได้ ตรวจสอบการเชื่อมต่อ</div>';
+  }
+}
+
+// ============================================================
+// loadLog — ดึงประวัติสต็อก 50 รายการล่าสุด
+// ============================================================
+async function loadLog() {
+  try {
+    const res  = await fetch(`${SCRIPT_URL}?action=getStockLog&limit=50`);
+    const logs = await res.json();
+    renderLog(logs);
+  } catch(e) {
+    document.getElementById('logBody').innerHTML =
+      '<tr><td colspan="7" class="empty">❌ โหลดไม่ได้</td></tr>';
+  }
+}
+
+// ============================================================
+// renderSummary — อัปเดต 4 การ์ดตัวเลขด้านบน
+// ============================================================
+function renderSummary() {
+  const active   = allItems.filter(i => i.active);
+  const ok       = active.filter(i => getStatus(i) === 'ok').length;
+  const low      = active.filter(i => getStatus(i) === 'low').length;
+  const critical = active.filter(i => getStatus(i) === 'critical').length;
+  document.getElementById('sumTotal').textContent    = active.length + ' ชนิด';
+  document.getElementById('sumOk').textContent       = ok       + ' ชนิด';
+  document.getElementById('sumLow').textContent      = low      + ' ชนิด';
+  document.getElementById('sumCritical').textContent = critical + ' ชนิด';
+}
+
+// ============================================================
+// ✅ Fix 4: filterAndSearch — กรองหมวดและค้นหาชื่อพร้อมกัน
+//
+// cat         = หมวดที่เลือก เช่น 'ผัก' หรือ 'ทั้งหมด'
+// btn         = element ปุ่มที่กด (null ถ้าเรียกจาก search หรือ loadStock)
+// updateTab   = อัปเดต active class ของปุ่มหมวดด้วยไหม
+//               (false เมื่อเรียกจาก loadStock ไม่ต้องอัปเดต tab)
+//
+// ทำงาน 2 ชั้น:
+//   ชั้น 1 — กรองหมวด: เฉพาะหมวดที่เลือก หรือทุกหมวด
+//   ชั้น 2 — กรองค้นหา: เฉพาะชื่อที่มีคำที่พิมพ์ (ถ้ามี)
+// ============================================================
+function filterAndSearch(cat, btn, updateTab = true) {
+  currentCat = cat;
+
+  // อัปเดต active class บนปุ่มหมวด
+  if (btn && updateTab) {
+    document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // ดึงคำค้นหา trim ตัด space หัวท้าย toLowerCase เพื่อไม่สนใจ case
+  const searchTerm = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+
+  // กรองชั้น 1: หมวด
+  const byCat = cat === 'ทั้งหมด'
+    ? allItems
+    : allItems.filter(i => i.category === cat);
+
+  // กรองชั้น 2: คำค้นหา
+  // includes() = ตรวจว่า string มีคำที่ต้องการอยู่ไหม
+  // เช่น 'ผักกาดขาว'.includes('กาด') → true
+  const filtered = searchTerm
+    ? byCat.filter(i =>
+        (i.displayName || i.menuName || '').toLowerCase().includes(searchTerm)
+      )
+    : byCat;
+
+  renderStock(filtered);
+}
+
+// ============================================================
+// renderStock — วาดการ์ดสินค้า
+// items = array ที่ผ่านการกรองมาแล้ว
+// ============================================================
+function renderStock(items) {
+  const grid        = document.getElementById('stockGrid');
+  const activeItems = items.filter(i => i.active);
+
+  if (!activeItems.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1" class="empty">
+      ไม่พบสินค้า<br>
+      <a href="stock-editor.html" style="color:var(--accent)">→ ไปตั้งค่าสต็อก</a>
+    </div>`;
+    return;
+  }
+
+  // เรียงตามความด่วน: critical ก่อน → expiring → low → ok
+  const statusOrder = { critical:0, expiring:1, low:2, ok:3 };
+  const sorted = [...activeItems].sort((a, b) =>
+    (statusOrder[getStatus(a)] || 3) - (statusOrder[getStatus(b)] || 3)
+  );
+
+  grid.innerHTML = sorted.map(item => renderCard(item)).join('');
+}
+
+// ============================================================
+// getStatus — คำนวณสถานะสินค้า
+// ============================================================
+function getStatus(item) {
+  if (item.currentQty <= item.alertQty)     return 'critical';
+  if (isExpiringSoon(item))                 return 'expiring';
+  if (item.currentQty < item.alertQty * 2) return 'low';
+  return 'ok';
+}
+function getStatusLabel(s) {
+  return { ok:'ปกติ', low:'ใกล้หมด', critical:'เติมด่วน!', expiring:'ใกล้หมดอายุ' }[s] || s;
+}
+
+// ============================================================
+// isExpiringSoon — ตรวจว่าจะหมดอายุใน ≤ 2 วันไหม
+// วันหมดอายุ = lastRestockDate + expiryDays
+// ============================================================
+function isExpiringSoon(item) {
+  if (!item.expiryDays || !item.lastRestockDate) return false;
+  try {
+    const parts = String(item.lastRestockDate).split('/');
+    if (parts.length < 3) return false;
+    const d = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1; // JavaScript เดือน 0-11
+    const y = parseInt(parts[2]) - 543; // พ.ศ. → ค.ศ.
+    const restockDate = new Date(y, m, d);
+    const expireDate  = new Date(restockDate.getTime() + item.expiryDays * 86400000);
+    // 86400000ms = 1 วัน (24 × 60 × 60 × 1000)
+    const daysLeft = Math.floor((expireDate - new Date()) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 2;
+  } catch(e) { return false; }
+}
+
+// ============================================================
+// renderCard — สร้าง HTML ของการ์ดสินค้า 1 ชิ้น
+// ============================================================
+function renderCard(item) {
+  const status   = getStatus(item);
+  const expiring = isExpiringSoon(item);
+
+  // progress bar %: ใช้ alertQty × 4 เป็น 100% ให้เห็นความต่าง
+  const maxQty = Math.max(item.alertQty * 4, item.currentQty, 1);
+  const pct    = Math.min(100, Math.round(item.currentQty / maxQty * 100));
+
+  // คำนวณวันที่เหลือก่อนหมดอายุ
+  let expiryText = '';
+  if (expiring && item.lastRestockDate) {
+    try {
+      const parts   = String(item.lastRestockDate).split('/');
+      const y       = parseInt(parts[2]) - 543;
+      const restock = new Date(y, parseInt(parts[1])-1, parseInt(parts[0]));
+      const expDate = new Date(restock.getTime() + item.expiryDays * 86400000);
+      const days    = Math.floor((expDate - new Date()) / 86400000);
+      expiryText    = days === 0 ? 'หมดอายุวันนี้!' : `หมดอายุใน ${days} วัน`;
+    } catch(e) {}
+  }
+
+  // แสดงจำนวนตามหน่วย
+  const qtyDisplay = (item.unit === 'g' || item.unit === 'ml')
+    ? item.currentQty.toLocaleString() // ใส่ comma เช่น 1,500
+    : Math.round(item.currentQty);     // ปัดเป็นจำนวนเต็ม
+
+  return `
+    <div class="stock-card status-${status}">
+      <div class="card-top">
+        <div class="item-name">${item.displayName || item.menuName}</div>
+        <span class="status-badge ${expiring ? 'expiring' : status}">
+          ${expiring ? getStatusLabel('expiring') : getStatusLabel(status)}
+        </span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-fill ${status}" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <div class="card-qty">
+        <span class="qty-current ${status}">${qtyDisplay}</span>
+        <span class="qty-unit">${item.unit}</span>
+        <span class="qty-alert">แจ้งเตือน: ${item.alertQty}${item.unit}</span>
+      </div>
+      ${expiring ? `<div class="expiry-warn">⏰ ${expiryText}</div>` : ''}
+      <div class="card-actions">
+        <button class="btn-restock" onclick="openRestock('${item.id}')">➕ เติม</button>
+        <button class="btn-waste"   onclick="openWaste('${item.id}')">🗑️ เสีย</button>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// renderLog — วาดตารางประวัติ
+// ============================================================
+function renderLog(logs) {
+  if (!logs.length) {
+    document.getElementById('logBody').innerHTML =
+      '<tr><td colspan="7" class="empty">ยังไม่มีประวัติ</td></tr>';
+    return;
+  }
+  const typeLabels = { sale:'ขาย', restock:'เติม', waste:'เสีย', adjust:'ปรับ' };
+  document.getElementById('logBody').innerHTML = logs.map(log => {
+    const qty   = parseFloat(log.qty) || 0;
+    const isPos = qty >= 0;
+    return `<tr>
+      <td>${log.date}</td><td>${log.time}</td>
+      <td style="font-weight:600;color:var(--text)">${log.itemName}</td>
+      <td><span class="log-type ${log.type}">${typeLabels[log.type] || log.type}</span></td>
+      <td class="${isPos ? 'qty-pos' : 'qty-neg'}">${isPos ? '+' : ''}${qty} ${log.unit}</td>
+      <td>${parseFloat(log.newTotal).toLocaleString()} ${log.unit}</td>
+      <td style="color:var(--muted)">${log.note || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// openRestock — เปิด modal เติมสต็อก
+// itemId = id ของสินค้าที่กดปุ่มเติม
+// ============================================================
+function openRestock(itemId) {
+  activeItemId = itemId;
+  const item   = allItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  // เขียนข้อมูลสินค้าลงใน modal
+  document.getElementById('restockItemName').textContent = item.displayName || item.menuName;
+  document.getElementById('restockUnit').textContent     = item.unit;
+
+  // reset ค่าทุกอย่างในการ์ด
+  document.getElementById('restockQty').value  = '';
+  document.getElementById('restockNote').value = '';
+  // ล้าง error state จากครั้งก่อน
+  document.getElementById('restockQtyError').classList.remove('show');
+  document.getElementById('restockQty').style.borderColor = '';
+  // reset ปุ่ม (เผื่อค้างจาก loading state ครั้งก่อน)
+  const btn = document.getElementById('restockConfirmBtn');
+  btn.disabled = false; btn.textContent = '✅ ยืนยัน';
+
+  document.getElementById('restockOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('restockQty').focus(), 200);
+}
+
+// confirmRestock — ยืนยันการเติมสต็อก
+async function confirmRestock() {
+  const item = allItems.find(i => i.id === activeItemId);
+  if (!item) return;
+
+  // ✅ Fix 1: validate — คืน null ถ้าไม่ผ่าน → หยุดทำงาน
+  const qty = validateQty('restockQty', 'restockQtyError');
+  if (qty === null) return;
+
+  const note = document.getElementById('restockNote').value.trim();
+
+  // ✅ Fix 2: เปิด loading state
+  setLoading('restockConfirmBtn', 'restockCancelBtn', true);
+
+  try {
+    const ok = await postToScript({
+      action:   'restock',
+      itemId:   item.id,
+      itemName: item.displayName || item.menuName,
+      qty, note,
+      unit: item.unit // ดึง unit จาก allItems ตรงๆ ป้องกัน unit mismatch
+    });
+
+    closeModal('restockOverlay');
+
+    // ✅ Fix 3: แสดง toast แจ้งผล
+    showToast(
+      ok
+        ? `✅ เติม ${item.displayName || item.menuName} +${qty}${item.unit} สำเร็จ!`
+        : '❌ บันทึกไม่สำเร็จ กรุณาลองใหม่',
+      ok ? 'success' : 'error'
+    );
+
+    await loadAll(); // โหลดข้อมูลใหม่
+  } catch(e) {
+    showToast('❌ เกิดข้อผิดพลาด: ' + e.message, 'error');
+  } finally {
+    // ✅ Fix 2: ปิด loading เสมอ ไม่ว่าจะสำเร็จหรือ error
+    // finally ทำงานแม้ใน try มี error
+    setLoading('restockConfirmBtn', 'restockCancelBtn', false);
+    document.getElementById('restockConfirmBtn').textContent = '✅ ยืนยัน';
+  }
+}
+
+// ============================================================
+// openWaste — เปิด modal ของเสีย
+// ============================================================
+function openWaste(itemId) {
+  activeItemId = itemId;
+  const item   = allItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  document.getElementById('wasteItemName').textContent = item.displayName || item.menuName;
+  document.getElementById('wasteUnit').textContent     = item.unit;
+  document.getElementById('wasteQty').value            = '';
+  document.getElementById('wasteNote').value           = '';
+  document.getElementById('wasteQtyError').classList.remove('show');
+  document.getElementById('wasteQty').style.borderColor = '';
+  const btn = document.getElementById('wasteConfirmBtn');
+  btn.disabled = false; btn.textContent = '🗑️ บันทึก';
+
+  document.getElementById('wasteOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('wasteQty').focus(), 200);
+}
+
+// confirmWaste — ยืนยันการบันทึกของเสีย
+async function confirmWaste() {
+  const item = allItems.find(i => i.id === activeItemId);
+  if (!item) return;
+
+  const qty = validateQty('wasteQty', 'wasteQtyError'); // ✅ Fix 1
+  if (qty === null) return;
+
+  const note = document.getElementById('wasteNote').value.trim() || 'ของเสีย';
+
+  setLoading('wasteConfirmBtn', 'wasteCancelBtn', true); // ✅ Fix 2
+
+  try {
+    const ok = await postToScript({
+      action: 'waste', itemId: item.id,
+      itemName: item.displayName || item.menuName,
+      qty, note, unit: item.unit
+    });
+
+    closeModal('wasteOverlay');
+
+    // ✅ Fix 3: toast
+    showToast(
+      ok
+        ? `🗑️ บันทึกของเสีย ${item.displayName || item.menuName} -${qty}${item.unit}`
+        : '❌ บันทึกไม่สำเร็จ กรุณาลองใหม่',
+      ok ? 'warning' : 'error'
+    );
+
+    await loadAll();
+  } catch(e) {
+    showToast('❌ เกิดข้อผิดพลาด: ' + e.message, 'error');
+  } finally {
+    setLoading('wasteConfirmBtn', 'wasteCancelBtn', false); // ✅ Fix 2
+    document.getElementById('wasteConfirmBtn').textContent = '🗑️ บันทึก';
+  }
+}
+
+// ============================================================
+// postToScript — ส่ง HTTP POST ไป Apps Script
+//
+// ทำไมใช้ Content-Type: text/plain?
+//   application/json ทำให้ browser ส่ง "CORS preflight" ก่อน
+//   แต่ Google Apps Script ไม่รองรับ preflight → blocked
+//   text/plain ไม่มี preflight → ผ่าน
+//   ตัว Apps Script ยัง JSON.parse body ได้ปกติ
+//
+// คืนค่า true ถ้าสำเร็จ, false ถ้าผิดพลาด
+// ============================================================
+async function postToScript(body) {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify(body)
+    });
+    // Apps Script ส่ง { ok: true } กลับมาถ้าสำเร็จ
+    // .catch(() => ({ ok: true })) = ถ้า parse JSON ไม่ได้ ให้ถือว่าสำเร็จ
+    // (mode no-cors บางครั้ง response ว่าง)
+    const result = await res.json().catch(() => ({ ok: true }));
+    return result.ok !== false;
+  } catch(e) {
+    console.error('postToScript error:', e);
+    return false;
+  }
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// กดพื้นหลัง overlay (นอก modal) → ปิด modal
+// e.target === o = คลิกที่ overlay พื้นหลัง ไม่ใช่ content ข้างใน
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
+});
+
+// ============================================================
+// INIT
+// ============================================================
+loadAll();                        // โหลดข้อมูลทันทีเมื่อหน้าโหลด
+setInterval(loadAll, 300000);    // รีเฟรชอัตโนมัติทุก 5 นาที (300,000ms)
+</script>
+</body>
+</html>
