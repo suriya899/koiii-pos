@@ -1389,3 +1389,333 @@ header {
   .receipt-total span { color: #e85d30 !important; }
   .modal h3 { color: #e85d30 !important; }
 }
+
+/* ============================================================
+   BILL HISTORY — ระบบดูและจัดการบิลที่ผ่านมา
+   ============================================================ */
+
+/* ปุ่ม 📋 ลอยมุมขวาล่าง (แสดงเฉพาะหน้า POS ที่ login แล้ว) */
+.floating-bills-btn {
+  position: fixed;
+  /* bottom: 72px;         อยู่เหนือปุ่ม admin ⚙️ ที่ bottom:20px */
+  bottom: 20px; /*ปรับให้ตำแหน่งมาอยู่ข้างปุ่ม admin*/
+  /* right: 20px; */
+  right: 70px; /*ปรับให้ตำแหน่งมาอยู่ข้างปุ่ม admin*/
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  /* display: none;         ซ่อนไว้ก่อน แสดงเมื่อ enterPOS() */
+
+  display: flex; /*ให้แสดงหน้าจอแรก*/
+
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 350;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.floating-bills-btn:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  transform: scale(1.08);
+}
+/* แสดงปุ่มเมื่อมีออเดอร์ในระบบแล้ว */
+.floating-bills-btn.visible { display: flex; }
+
+
+/* ============================================================
+   BILL HISTORY MODAL — modal รายการบิล
+   ============================================================ */
+.bh-modal {
+  /* override ขนาด modal เดิม */
+  max-width: 500px !important;
+  max-height: 85dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.bh-modal-header {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.bh-modal-title {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.bh-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.2s;
+  line-height: 1;
+}
+.bh-modal-close:hover { color: var(--red); }
+
+/* แถบเลือกวันที่ */
+.bh-date-bar {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+.bh-date-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+.bh-date-input:focus { outline: none; border-color: var(--accent); }
+.bh-load-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: filter 0.2s;
+}
+.bh-load-btn:hover { filter: brightness(1.1); }
+.bh-bill-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* รายการบิล */
+.bh-bill-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  min-height: 0;  /* สำคัญมาก! ไม่ใส่จะ overflow */
+}
+.bh-bill-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  transition: border-color 0.18s, transform 0.15s;
+}
+.bh-bill-item:last-child { margin-bottom: 0; }
+.bh-bill-item:hover { border-color: var(--accent); transform: translateX(3px); }
+/* บิลที่ถูกยกเลิก — จางลง */
+.bh-bill-item.cancelled { opacity: 0.45; }
+.bh-bill-item.cancelled:hover { border-color: var(--red); }
+
+.bh-bill-left  { flex: 1; min-width: 0; }
+.bh-bill-time  { font-size: 0.88rem; font-weight: 700; color: var(--text); }
+.bh-bill-table { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.bh-bill-preview {
+  font-size: 0.66rem;
+  color: var(--text-dim);
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bh-bill-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.bh-bill-total {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+/* badge วิธีชำระ */
+.bh-method { font-size: 0.62rem; padding: 2px 7px; border-radius: 7px; }
+.bh-method.cash { background: rgba(63,185,80,0.12);  color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+.bh-method.qr   { background: rgba(88,166,255,0.12); color: var(--blue);  border: 1px solid rgba(88,166,255,0.25); }
+/* badge สถานะ */
+.bh-status { font-size: 0.6rem; padding: 2px 6px; border-radius: 6px; }
+.bh-status.active    { background: rgba(63,185,80,0.1);  color: var(--green); border: 1px solid rgba(63,185,80,0.2); }
+.bh-status.cancelled { background: rgba(248,81,73,0.1);  color: var(--red);   border: 1px solid rgba(248,81,73,0.2); }
+
+/* empty/loading state */
+.bh-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.bh-empty .bh-em-icon { font-size: 2.2rem; display: block; margin-bottom: 8px; opacity: 0.6; }
+
+
+/* ============================================================
+   BILL DETAIL MODAL — modal รายละเอียดบิล
+   ============================================================ */
+.bh-detail-modal {
+  max-width: 420px !important;
+  max-height: 85dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.bh-detail-head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.bh-detail-tablename {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--text);
+}
+.bh-detail-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
+.bh-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
+/* กล่องแจ้ง "ถูกยกเลิกแล้ว" */
+.bh-cancelled-notice {
+  background: rgba(248,81,73,0.1);
+  border: 1px solid rgba(248,81,73,0.25);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  color: var(--red);
+  text-align: center;
+  margin-bottom: 14px;
+  display: none;
+}
+.bh-cancelled-notice.show { display: block; }
+
+/* section แต่ละชาม */
+.bh-bowl-section { margin-bottom: 14px; }
+.bh-bowl-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--gold);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.bh-item-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  padding: 2px 4px;
+  color: var(--text-muted);
+}
+.bh-item-row span:first-child { color: var(--text); }
+.bh-item-row span:last-child {
+  color: var(--gold);
+  font-weight: 600;
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.75rem;
+}
+
+/* ยอดรวมใน detail */
+.bh-detail-total {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.bh-detail-total-label { font-size: 0.82rem; color: var(--text-muted); }
+.bh-detail-total-amount {
+  font-family: 'Prompt', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* footer actions */
+.bh-detail-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.btn-bh-close {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-bh-close:hover { border-color: var(--accent); color: var(--text); }
+.btn-bh-cancel {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--red);
+  background: rgba(248,81,73,0.07);
+  color: var(--red);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-bh-cancel:hover { background: rgba(248,81,73,0.16); }
+.btn-bh-cancel:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============================================================
+   แก้ z-index ของ bill history overlays
+   ต้องสูงกว่า welcome-screen (z-index:300) เพื่อแสดงทับได้
+   ============================================================ */
+   #billHistoryOverlay,
+   #billDetailOverlay {
+     z-index: 310;
+   }

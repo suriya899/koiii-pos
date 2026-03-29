@@ -1164,6 +1164,11 @@ function resetPOS() {
   currentStep = 0;
   orderType = null;
   tableNum = null;
+
+  // document.getElementById('billsBtn').classList.remove('visible'); // ซ่อนปุ่ม 📋
+
+  document.getElementById('billsBtn').style.display = 'flex'; // แสดงปุ่ม 📋 กลับมา
+
   document.getElementById('adminBtn').style.display = 'flex'; // เพิ่มปุ่ม admin
   document.getElementById('mainLayout').style.display = 'none';
   document.getElementById('headerBadge').style.display = 'none';
@@ -1255,6 +1260,8 @@ function clearDesserts() {
 }
 
 function showTypeSelect() {
+  document.getElementById('billsBtn').style.display = 'none'; // ซ่อนปุ่ม 📋 เมื่อออกจาก welcome:
+
   document.getElementById('adminBtn').style.display = 'none'; // เพิ่มปุ่ม admin
   document.getElementById('welcomeScreen').classList.remove('show');
   document.getElementById('tableScreen').classList.remove('show');
@@ -1317,6 +1324,10 @@ async function enterPOS() {
 
   const badge = document.getElementById('headerBadge');
   const backBtn = document.getElementById('headerBackBtn');
+
+// ══ เพิ่มตรงนี้ 1 บรรทัด ══
+// document.getElementById('billsBtn').classList.add('visible'); // แสดงปุ่ม 📋
+
   if (orderType === 'dine' && tableNum) {
     badge.textContent = '🪑 โต๊ะ ' + tableNum;
     badge.style.display = 'inline-block';
@@ -1389,6 +1400,292 @@ function choosePay(type) {
 }
 
 // ============================================================
+// BILL HISTORY MANAGEMENT — ระบบดูและจัดการบิลที่ผ่านมา
+// ============================================================
+
+// State ของ Bill History
+let bhAllBills    = [];  // บิลทั้งหมดที่โหลดมาจาก Sheets ในวันที่เลือก
+let bhSelectedBill = null; // บิลที่กำลังดูรายละเอียดอยู่
+let bhSelectedIdx  = -1;   // index ของ bhSelectedBill ใน bhAllBills
+
+// ── openBillHistory ──
+// เปิด modal รายการบิล + ใส่วันที่วันนี้อัตโนมัติ + โหลดบิลทันที
+function openBillHistory() {
+  // คำนวณวันที่วันนี้ในรูปแบบ yyyy-mm-dd (สำหรับ input[type=date])
+  const t  = new Date();
+  const yy = t.getFullYear();
+  const mm = String(t.getMonth() + 1).padStart(2, '0');
+  const dd = String(t.getDate()).padStart(2, '0');
+  document.getElementById('bhDateInput').value = `${yy}-${mm}-${dd}`;
+
+  document.getElementById('billHistoryOverlay').classList.add('show');
+  loadBillsByDate(); // โหลดทันทีไม่ต้องรอกดปุ่ม
+}
+
+// ── getBHThaiDate ──
+// แปลงวันที่จาก input[type=date] (2026-03-21)
+// → รูปแบบ Sheets (21/03/2569) เพื่อใช้กับ ?date= parameter
+function getBHThaiDate(dateVal) {
+  if (!dateVal) return '';
+  const [y, m, d] = dateVal.split('-');
+  return `${d}/${m}/${parseInt(y) + 543}`; // +543 = ค.ศ. → พ.ศ.
+}
+
+// ── loadBillsByDate ──
+// ดึงรายการบิลจาก Sheets ตามวันที่ที่เลือก
+async function loadBillsByDate() {
+  const dateVal = document.getElementById('bhDateInput').value;
+  if (!dateVal) { alert('กรุณาเลือกวันที่ก่อนครับ'); return; }
+
+  // แสดง loading
+  const listEl = document.getElementById('bhBillList');
+  listEl.innerHTML = `
+    <div class="bh-empty">
+      <span class="bh-em-icon">⏳</span>
+      กำลังโหลด...
+    </div>
+  `;
+  document.getElementById('bhBillCount').textContent = '';
+
+  try {
+    const thaiDate = getBHThaiDate(dateVal);
+    // ใช้ endpoint เดิมที่มีอยู่แล้ว ?date=... (เหมือน dashboard.html)
+    const res  = await fetch(`${SHEETS_URL}?date=${encodeURIComponent(thaiDate)}`);
+    const data = await res.json();
+
+    // ป้องกัน response ที่ไม่ใช่ array (เช่น error object)
+    bhAllBills = Array.isArray(data) ? data : [];
+    renderBHList();
+  } catch(e) {
+    listEl.innerHTML = `
+      <div class="bh-empty">
+        <span class="bh-em-icon">❌</span>
+        โหลดไม่ได้ ตรวจสอบการเชื่อมต่อ<br>
+        <small style="color:var(--text-dim)">${e.message}</small>
+      </div>
+    `;
+  }
+}
+
+// ── renderBHList ──
+// วาดรายการบิลใน modal (เรียงจากล่าสุดไปเก่าสุด)
+function renderBHList() {
+  const listEl = document.getElementById('bhBillList');
+
+  if (!bhAllBills.length) {
+    listEl.innerHTML = `
+      <div class="bh-empty">
+        <span class="bh-em-icon">📭</span>
+        ไม่มีบิลในวันที่เลือก
+      </div>
+    `;
+    document.getElementById('bhBillCount').textContent = '0 บิล';
+    return;
+  }
+
+  // นับบิลที่ยกเลิกแล้ว
+  const cancelledCount = bhAllBills.filter(b => b.status === 'ยกเลิก').length;
+  const countText = cancelledCount > 0
+    ? `${bhAllBills.length} บิล (ยกเลิก ${cancelledCount})`
+    : `${bhAllBills.length} บิล`;
+  document.getElementById('bhBillCount').textContent = countText;
+
+  // เรียงจากล่าสุดก่อน: reverse() + map เก็บ origIdx ไว้
+  // origIdx = index ใน bhAllBills ต้นฉบับ (ก่อน reverse)
+  // จำเป็นสำหรับ openBHDetail() เพื่อดึงบิลที่ถูกต้อง
+  const sorted = bhAllBills
+    .map((bill, i) => ({ ...bill, _origIdx: i }))
+    .reverse();
+
+  listEl.innerHTML = sorted.map(bill => {
+    const isCancelled = bill.status === 'ยกเลิก';
+    const isTakeaway  = bill.orderType === 'กลับบ้าน';
+    const tableText   = isTakeaway ? '🥡 กลับบ้าน' : (bill.table || '—');
+    const methodCls   = bill.payMethod === 'เงินสด' ? 'cash' : 'qr';
+    const methodLabel = bill.payMethod === 'เงินสด' ? '💵 เงินสด' : '📱 โอน/QR';
+
+    // preview รายการ — ตัดให้สั้นพอดีกล่อง
+    const preview = bill.items
+      ? bill.items.replace(/ชามที่\d+:\s*/g, '').substring(0, 55) +
+        (bill.items.length > 55 ? '...' : '')
+      : '—';
+
+    return `
+      <div class="bh-bill-item ${isCancelled ? 'cancelled' : ''}"
+           onclick="openBHDetail(${bill._origIdx})">
+        <div class="bh-bill-left">
+          <div class="bh-bill-time">⏰ ${bill.time || '—'}</div>
+          <div class="bh-bill-table">${tableText}</div>
+          <div class="bh-bill-preview">${preview}</div>
+        </div>
+        <div class="bh-bill-right">
+          <div class="bh-bill-total">฿${parseFloat(bill.total || 0).toLocaleString()}</div>
+          <span class="bh-method ${methodCls}">${methodLabel}</span>
+          <span class="bh-status ${isCancelled ? 'cancelled' : 'active'}">
+            ${isCancelled ? 'ยกเลิก' : 'ปกติ'}
+          </span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── openBHDetail ──
+// เปิด modal รายละเอียดบิล (origIdx = index ใน bhAllBills)
+function openBHDetail(origIdx) {
+  const bill = bhAllBills[origIdx];
+  if (!bill) return;
+
+  bhSelectedBill = bill;
+  bhSelectedIdx  = origIdx;
+
+  const isCancelled = bill.status === 'ยกเลิก';
+  const isTakeaway  = bill.orderType === 'กลับบ้าน';
+
+  // เติมข้อมูลหัว modal
+  document.getElementById('bhDtTable').textContent =
+    isTakeaway ? '🥡 สั่งกลับบ้าน' : ('🪑 ' + (bill.table || '—'));
+  document.getElementById('bhDtDate').textContent   = bill.date    || '—';
+  document.getElementById('bhDtTime').textContent   = bill.time    || '—';
+  document.getElementById('bhDtMethod').textContent = bill.payMethod || '—';
+  document.getElementById('bhDtTotal').textContent  = '฿' + parseFloat(bill.total || 0).toLocaleString();
+
+  // แสดง/ซ่อนปุ่มยกเลิก + notice
+  const cancelNotice = document.getElementById('bhDtCancelNotice');
+  const cancelBtn    = document.getElementById('bhDtCancelBtn');
+  if (isCancelled) {
+    cancelNotice.classList.add('show');
+    cancelBtn.style.display = 'none';
+  } else {
+    cancelNotice.classList.remove('show');
+    cancelBtn.style.display  = 'block';
+    cancelBtn.disabled       = false;
+    cancelBtn.textContent    = '🗑️ ยกเลิกบิลนี้';
+  }
+
+  // แปลงรายการสินค้าเป็น HTML
+  document.getElementById('bhDtItems').innerHTML = parseBHItemsHtml(bill.items || '');
+
+  document.getElementById('billDetailOverlay').classList.add('show');
+}
+
+// ── parseBHItemsHtml ──
+// แปลง string รายการสินค้าให้เป็น HTML สวยงาม
+//
+// format ที่ saveToSheets() บันทึกไว้:
+//   "ชามที่1: 🥩 เนื้อวัว ฿99 x1 = ฿99, 🥬 ผักกาดขาว ฿25 | ชามที่2: ..."
+//   แต่ละชามคั่นด้วย " | "
+//   แต่ละรายการในชามคั่นด้วย ", "
+function parseBHItemsHtml(itemsStr) {
+  if (!itemsStr.trim()) {
+    return '<div style="text-align:center;color:var(--text-dim);font-size:0.82rem">ไม่มีข้อมูลรายการ</div>';
+  }
+
+  return itemsStr.split(' | ').map(bowl => {
+    // แยกชื่อชาม เช่น "ชามที่1"
+    const colonIdx  = bowl.indexOf(':');
+    const bowlTitle = colonIdx > 0 ? bowl.substring(0, colonIdx).trim() : 'ชาม';
+    const itemsPart = colonIdx > 0 ? bowl.substring(colonIdx + 1).trim() : bowl.trim();
+
+    // แต่ละรายการในชาม
+    const rowsHtml = itemsPart.split(', ').map(item => {
+      item = item.trim();
+      if (!item) return '';
+
+      // แยกชื่อ (ก่อน ฿) กับราคา/จำนวน (หลัง ฿)
+      const priceIdx = item.indexOf('฿');
+      const namePart  = priceIdx > 0 ? item.substring(0, priceIdx).trim() : item;
+      const pricePart = priceIdx > 0 ? '฿' + item.substring(priceIdx + 1).trim() : '';
+
+      return `
+        <div class="bh-item-row">
+          <span>${namePart}</span>
+          <span>${pricePart}</span>
+        </div>
+      `;
+    }).filter(Boolean).join('');
+
+    return `
+      <div class="bh-bowl-section">
+        <div class="bh-bowl-title">🍲 ${bowlTitle}</div>
+        ${rowsHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── confirmCancelBill ──
+// ยืนยันก่อนยกเลิกบิล → POST ไป Apps Script
+async function confirmCancelBill() {
+  const bill = bhSelectedBill;
+  if (!bill) return;
+
+  // ยืนยันสองชั้น (เพราะยกเลิกแล้วเปลี่ยนกลับยาก)
+  const msg = [
+    'ยืนยันการยกเลิกบิลนี้?',
+    '',
+    `📋 ${bill.table || bill.orderType || '—'}`,
+    `⏰ ${bill.time || '—'} น.  วันที่ ${bill.date || '—'}`,
+    `💰 ยอด ฿${parseFloat(bill.total || 0).toLocaleString()}`,
+    '',
+    '⚠️ ข้อมูลจะถูก mark "ยกเลิก" ใน Google Sheets',
+    '    (ยังสามารถดูประวัติได้ แต่ไม่นับในยอดขาย)',
+  ].join('\n');
+
+  if (!confirm(msg)) return;
+
+  // ปิดปุ่มป้องกันกดซ้ำ + แสดง loading
+  const cancelBtn = document.getElementById('bhDtCancelBtn');
+  cancelBtn.disabled    = true;
+  cancelBtn.textContent = '⏳ กำลังยกเลิก...';
+
+  try {
+    // POST ไป Apps Script ด้วย action:'cancelOrder'
+    // ใช้ Content-Type: text/plain เพื่อหลีกเลี่ยง CORS preflight
+    // (เหมือนกับที่ stock.html ใช้)
+    const res = await fetch(SHEETS_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify({
+        action:    'cancelOrder',
+        date:      bill.date,       // วันที่ของบิล เช่น "21/03/2569"
+        time:      bill.time,       // เวลา เช่น "18:30"
+        table:     bill.table || '', // "โต๊ะ 3" หรือ "กลับบ้าน"
+        orderType: bill.orderType || ''
+      })
+    });
+
+    // Apps Script ตอบกลับ { ok: true } หรือ { ok: false, error: '...' }
+    // .catch(() => ({ ok: true })) = fallback ถ้า response ไม่ใช่ JSON
+    const data = await res.json().catch(() => ({ ok: true }));
+
+    if (data.ok !== false) {
+      // ✅ สำเร็จ: อัปเดต state ใน memory (ไม่ต้องโหลดใหม่จาก Sheets)
+      bhAllBills[bhSelectedIdx].status = 'ยกเลิก';
+
+      // ปิด detail modal กลับไปหา list
+      closeOverlay('billDetailOverlay');
+
+      // อัปเดต list ให้แสดงสถานะใหม่ทันที
+      renderBHList();
+
+      alert('✅ ยกเลิกบิลสำเร็จแล้วครับ\nข้อมูลถูก mark "ยกเลิก" ใน Google Sheets');
+    } else {
+      // ❌ Apps Script ตอบว่าไม่สำเร็จ
+      alert('❌ ยกเลิกไม่สำเร็จ:\n' + (data.error || 'ไม่ทราบสาเหตุ'));
+      cancelBtn.disabled    = false;
+      cancelBtn.textContent = '🗑️ ยกเลิกบิลนี้';
+    }
+
+  } catch(e) {
+    // Network error หรือ Apps Script error
+    alert('❌ เกิดข้อผิดพลาด:\n' + e.message + '\n\nตรวจสอบการเชื่อมต่อแล้วลองใหม่ครับ');
+    cancelBtn.disabled    = false;
+    cancelBtn.textContent = '🗑️ ยกเลิกบิลนี้';
+  }
+}
+
+// ============================================================
 // INIT
 // ============================================================
 // startNewBowl() is called inside enterPOS() after welcome screen fades
@@ -1425,5 +1722,93 @@ function choosePay(type) {
 " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
    onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
    title="Admin Panel">⚙️</a>
+
+<!-- ปุ่มดูบิล 📋 ลอยมุมขวาล่าง
+     แสดงเมื่อเข้าสู่หน้า POS (enterPOS() เรียก show)
+     bottom:72px อยู่เหนือปุ่ม admin ⚙️ ที่ bottom:20px -->
+     <button id="billsBtn"
+     class="floating-bills-btn"
+     onclick="openBillHistory()"
+     title="ดูบิลวันนี้ / แก้ไขบิล">
+     📋
+   </button>
+
+<!-- ============================================================
+     BILL HISTORY OVERLAY — รายการบิลทั้งหมด
+     ============================================================ -->
+     <div class="overlay" id="billHistoryOverlay">
+      <div class="modal bh-modal">
+    
+        <!-- Header -->
+        <div class="bh-modal-header">
+          <div class="bh-modal-title">📋 รายการบิล</div>
+          <button class="bh-modal-close"
+                  onclick="closeOverlay('billHistoryOverlay')"
+                  title="ปิด">✕</button>
+        </div>
+    
+        <!-- Date picker -->
+        <div class="bh-date-bar">
+          <input type="date" class="bh-date-input" id="bhDateInput"
+                 onkeydown="if(event.key==='Enter') loadBillsByDate()">
+          <button class="bh-load-btn" onclick="loadBillsByDate()">🔍 ดู</button>
+          <span class="bh-bill-count" id="bhBillCount"></span>
+        </div>
+    
+        <!-- Bill list -->
+        <div class="bh-bill-list" id="bhBillList">
+          <div class="bh-empty">
+            <span class="bh-em-icon">📋</span>
+            เลือกวันที่แล้วกด "ดู"
+          </div>
+        </div>
+    
+      </div>
+    </div>
+    
+    
+    <!-- ============================================================
+         BILL DETAIL OVERLAY — รายละเอียดบิลแต่ละใบ
+         ============================================================ -->
+    <div class="overlay" id="billDetailOverlay">
+      <div class="modal bh-detail-modal">
+    
+        <!-- Header -->
+        <div class="bh-detail-head">
+          <div class="bh-detail-tablename" id="bhDtTable">—</div>
+          <div class="bh-detail-meta">
+            <span id="bhDtDate">—</span>&nbsp;·&nbsp;
+            <span id="bhDtTime">—</span> น.&nbsp;·&nbsp;
+            <span id="bhDtMethod">—</span>
+          </div>
+        </div>
+    
+        <!-- Body -->
+        <div class="bh-detail-body">
+          <!-- แจ้งเตือนถ้าถูกยกเลิกแล้ว -->
+          <div class="bh-cancelled-notice" id="bhDtCancelNotice">
+            ⚠️ บิลนี้ถูกยกเลิกแล้ว ไม่สามารถดำเนินการเพิ่มได้
+          </div>
+    
+          <!-- รายการสินค้า (inject โดย JavaScript) -->
+          <div id="bhDtItems"></div>
+    
+          <!-- ยอดรวม -->
+          <div class="bh-detail-total">
+            <span class="bh-detail-total-label">ยอดรวมทั้งหมด</span>
+            <span class="bh-detail-total-amount" id="bhDtTotal">฿0</span>
+          </div>
+        </div>
+    
+        <!-- Footer -->
+        <div class="bh-detail-footer">
+          <button class="btn-bh-close"
+                  onclick="closeOverlay('billDetailOverlay')">← กลับ</button>
+          <button class="btn-bh-cancel" id="bhDtCancelBtn"
+                  onclick="confirmCancelBill()">🗑️ ยกเลิกบิลนี้</button>
+        </div>
+    
+      </div>
+    </div>
 </body>
 </html>
