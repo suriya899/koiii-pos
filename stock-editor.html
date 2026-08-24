@@ -519,13 +519,20 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 .cost-helper-result { font-size: 0.75rem; color: var(--green); font-weight: 600; margin-top: 8px; min-height: 1.1em; }
 
 /* ประวัติการคำนวณราคา */
-.hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
-.hist-row:last-child { border-bottom: none; }
 .hist-main { font-size: 0.85rem; color: var(--text); font-weight: 600; }
 .hist-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-.hist-price { font-family: 'Prompt', sans-serif; font-size: 1rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
-.hist-del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.95rem; padding: 4px 6px; }
+.hist-del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.95rem; padding: 4px 6px; flex-shrink: 0; }
 .hist-del:hover { color: var(--red); }
+
+/* การ์ดประวัติแบบเต็ม — แสดงรายละเอียดครบทุกจุดเหมือนผลลัพธ์หลัก */
+.hist-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+.hist-card:last-child { margin-bottom: 0; }
+.hist-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.hist-detail-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 0.78rem; color: var(--muted); }
+.hist-detail-row span:last-child { color: var(--text); font-weight: 600; }
+.hist-detail-row.hist-total { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.hist-detail-row.hist-total span:first-child { color: var(--text); font-weight: 700; }
+.hist-detail-row.hist-total span:last-child { font-family: 'Prompt', sans-serif; font-size: 1rem; color: var(--accent); }
 
 </style>
 </head>
@@ -1644,11 +1651,28 @@ function showStatus(msg, type) {
 function autofillCost() {
   const sel = document.getElementById('calcProduct');
   const opt = sel.options[sel.selectedIndex];
+
+  // เปลี่ยนสินค้าแล้ว → เลขในตัวช่วยคำนวณ (ราคาที่ซื้อ/ปริมาณ/ใช้ต่อเสิร์ฟ)
+  // เป็นของสินค้าตัวเก่า ไม่เกี่ยวกับตัวใหม่แล้ว ต้องล้างทิ้งกันข้อมูลค้าง
+  resetCostHelper();
+
   // dataset.cost ถูกเซ็ตไว้ใน refreshDropdownCosts()
   if (opt && opt.dataset.cost) {
     document.getElementById('calcCost').value = opt.dataset.cost;
-    calcPrice(); // คำนวณทันที
+  } else {
+    document.getElementById('calcCost').value = '';
   }
+  // ต้นทุนอื่นๆ (ค่าแพ็ก กล่อง) ก็เป็นของสินค้าตัวเก่าเหมือนกัน รีเซ็ตกลับ 0
+  document.getElementById('calcExtra').value = 0;
+  calcPrice(); // คำนวณทันที
+}
+
+// resetCostHelper — ล้างช่องตัวช่วยคำนวณต้นทุนจากราคาที่ซื้อทั้งหมด
+function resetCostHelper() {
+  document.getElementById('helpBuyPrice').value  = '';
+  document.getElementById('helpBuyQty').value    = '';
+  document.getElementById('helpServeQty').value  = '';
+  document.getElementById('costHelperResult').textContent = '';
 }
 
 // setPlatform — เลือก platform และตั้ง GP%
@@ -1786,8 +1810,13 @@ function calcPrice() {
     productName:    productName || '',
     total:          total,
     gpPercent:      currentGP,
+    gpAmount:       gpAmt,
     profitPercent:  profit,
+    wantedProfit:   wProfit,
     sellPrice:      Math.ceil(sell),
+    revenue:        revenue,
+    actualProfit:   aProfit,
+    actualPct:      aPct,
     platformLabel:  document.getElementById('platformLabel').textContent
   };
 }
@@ -1839,6 +1868,14 @@ function getCalcHistory() {
 }
 
 // renderCalcHistory — วาดรายการประวัติทั้งหมดลงหน้าจอ
+// fmtMoney — แปลงตัวเลขเป็น "฿x.xx" อย่างปลอดภัย
+// (ประวัติเก่าที่บันทึกไว้ก่อนอัปเดตอาจไม่มีบางฟิลด์ กันพัง)
+function fmtMoney(v) {
+  return (typeof v === 'number' && !isNaN(v)) ? '฿' + v.toFixed(2) : '—';
+}
+
+// renderCalcHistory — วาดประวัติเป็นการ์ดเต็ม เห็นรายละเอียดครบทุกจุด
+// เหมือนฝั่งผลลัพธ์หลัก ไม่ใช่แค่แถวสรุปสั้นๆ
 function renderCalcHistory() {
   const history = getCalcHistory();
   const listEl  = document.getElementById('calcHistoryList');
@@ -1849,16 +1886,21 @@ function renderCalcHistory() {
   listEl.innerHTML = history.map(function(h, i) {
     const name = h.productName || 'ไม่ระบุสินค้า';
     return (
-      '<div class="hist-row">' +
-        '<div>' +
-          '<div class="hist-main">' + name + '</div>' +
-          '<div class="hist-sub">' + h.savedAt + ' · ต้นทุนรวม ฿' + h.total.toFixed(2) +
-            ' · ' + h.platformLabel + ' · กำไร ' + h.profitPercent + '%</div>' +
+      '<div class="hist-card">' +
+        '<div class="hist-card-head">' +
+          '<div>' +
+            '<div class="hist-main">' + name + '</div>' +
+            '<div class="hist-sub">' + h.savedAt + ' · ' + h.platformLabel + '</div>' +
+          '</div>' +
+          '<button class="hist-del" onclick="deleteCalcHistory(' + i + ')" title="ลบรายการนี้">🗑</button>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:10px">' +
-          '<span class="hist-price">฿' + h.sellPrice + '</span>' +
-          '<button class="hist-del" onclick="deleteCalcHistory(' + i + ')" title="ลบ">🗑</button>' +
-        '</div>' +
+        '<div class="hist-detail-row"><span>ต้นทุนรวม</span><span>' + fmtMoney(h.total) + '</span></div>' +
+        '<div class="hist-detail-row"><span>GP ที่แพลตฟอร์มหัก</span><span>' + fmtMoney(h.gpAmount) + ' (' + h.gpPercent + '%)</span></div>' +
+        '<div class="hist-detail-row"><span>กำไรที่ต้องการ</span><span>' + fmtMoney(h.wantedProfit) + ' (' + h.profitPercent + '%)</span></div>' +
+        '<div class="hist-detail-row hist-total"><span>💡 ราคาขายที่แนะนำ</span><span>฿' + h.sellPrice + '</span></div>' +
+        '<div class="hist-detail-row"><span>รายได้หลังหัก GP</span><span>' + fmtMoney(h.revenue) + '</span></div>' +
+        '<div class="hist-detail-row"><span>กำไรจริง</span><span>' + fmtMoney(h.actualProfit) +
+          (typeof h.actualPct === 'number' && !isNaN(h.actualPct) ? ' (' + h.actualPct.toFixed(1) + '%)' : '') + '</span></div>' +
       '</div>'
     );
   }).join('');
