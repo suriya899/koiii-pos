@@ -769,7 +769,7 @@ requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม
 // SCRIPT_URL มาจาก auth.js — เปลี่ยนตรงนั้นถ้า deploy Script ใหม่
 
 // หมวดสินค้าทั้งหมด — ใช้สร้าง <option> ใน select
-const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','แปรรูป','ของหวาน','น้ำซุป','น้ำจิ้ม'];
+const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','ลูกชิ้น','เส้น','เครื่องดื่ม','ของหวาน','น้ำซุป','น้ำจิ้ม'];
 
 // หน่วยที่รองรับ
 const UNITS = ['g','ชิ้น','ml'];
@@ -1584,15 +1584,18 @@ async function loadFromMenu() {
 
   // เดาหมวด/หน่วย/ค่าตัด จาก type ของเมนู
   newItems.forEach(function(m) {
-    var category = 'แปรรูป', unit = 'ชิ้น', deduct = 2;
+    var category = 'ลูกชิ้น', unit = 'ชิ้น', deduct = 2;
 
     if (m.type === 'meats')    { category = 'เนื้อสัตว์'; unit = 'g';    deduct = 100; }
     if (m.type === 'soups')    { category = 'น้ำซุป';      unit = 'ml';   deduct = 500; }
     if (m.type === 'sauces')   { category = 'น้ำจิ้ม';     unit = 'ml';   deduct = 30;  }
     if (m.type === 'desserts') { category = 'ของหวาน';     unit = 'ชิ้น'; deduct = 1;   }
+    if (m.type === 'drinks')   { category = 'เครื่องดื่ม'; unit = 'ชิ้น'; deduct = 1;   }
     if (m.cat  === 'ผัก')      { category = 'ผัก';          unit = 'g';    deduct = 80;  }
     if (m.cat  === 'เห็ด')     { category = 'เห็ด';         unit = 'g';    deduct = 60;  }
     if (m.cat  === 'เต้าหู้')  { category = 'เต้าหู้';     unit = 'ชิ้น'; deduct = 2;   }
+    if (m.cat  === 'ลูกชิ้น')  { category = 'ลูกชิ้น';     unit = 'ชิ้น'; deduct = 2;   }
+    if (m.cat  === 'เส้น')     { category = 'เส้น';         unit = 'g';    deduct = 50;  }
 
     stockItems.push({
       // Date.now() + random เพื่อป้องกัน id ซ้ำกรณีเพิ่มหลายชิ้นพร้อมกัน
