@@ -528,6 +528,7 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 .hist-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
 .hist-card:last-child { margin-bottom: 0; }
 .hist-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.hist-source { font-size: 0.72rem; color: var(--gold); background: rgba(240,168,48,0.08); border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; }
 .hist-detail-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 0.78rem; color: var(--muted); }
 .hist-detail-row span:last-child { color: var(--text); font-weight: 600; }
 .hist-detail-row.hist-total { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
@@ -1805,6 +1806,15 @@ function calcPrice() {
     applyBtn.disabled = true;
   }
 
+  // ── จำที่มาของต้นทุน ถ้ากรอกผ่านตัวช่วยคำนวณ (ราคาที่ซื้อ/ปริมาณ/ใช้ต่อเสิร์ฟ) ──
+  // เก็บไว้ด้วยเผื่อย้อนดูประวัติทีหลังว่าตอนนั้นซื้อมาราคาเท่าไหร่ น้ำหนักเท่าไหร่
+  const helpBuyPrice = parseFloat(document.getElementById('helpBuyPrice').value) || 0;
+  const helpBuyQty   = parseFloat(document.getElementById('helpBuyQty').value)   || 0;
+  const helpServeQty = parseFloat(document.getElementById('helpServeQty').value) || 0;
+  const costSource = (helpBuyPrice > 0 && helpBuyQty > 0 && helpServeQty > 0)
+    ? { buyPrice: helpBuyPrice, buyQty: helpBuyQty, serveQty: helpServeQty }
+    : null;
+
   // เก็บผลลัพธ์ล่าสุดไว้ใช้ตอนกด "บันทึกไว้ดู" หรือ "ใช้ราคานี้ขายจริง"
   lastCalc = {
     productName:    productName || '',
@@ -1817,7 +1827,8 @@ function calcPrice() {
     revenue:        revenue,
     actualProfit:   aProfit,
     actualPct:      aPct,
-    platformLabel:  document.getElementById('platformLabel').textContent
+    platformLabel:  document.getElementById('platformLabel').textContent,
+    costSource:     costSource
   };
 }
 
@@ -1894,6 +1905,10 @@ function renderCalcHistory() {
           '</div>' +
           '<button class="hist-del" onclick="deleteCalcHistory(' + i + ')" title="ลบรายการนี้">🗑</button>' +
         '</div>' +
+        (h.costSource ?
+          '<div class="hist-source">🧮 ซื้อ ฿' + h.costSource.buyPrice + ' / ' + h.costSource.buyQty +
+            ' · ใช้ต่อเสิร์ฟ ' + h.costSource.serveQty + '</div>'
+          : '') +
         '<div class="hist-detail-row"><span>ต้นทุนรวม</span><span>' + fmtMoney(h.total) + '</span></div>' +
         '<div class="hist-detail-row"><span>GP ที่แพลตฟอร์มหัก</span><span>' + fmtMoney(h.gpAmount) + ' (' + h.gpPercent + '%)</span></div>' +
         '<div class="hist-detail-row"><span>กำไรที่ต้องการ</span><span>' + fmtMoney(h.wantedProfit) + ' (' + h.profitPercent + '%)</span></div>' +
