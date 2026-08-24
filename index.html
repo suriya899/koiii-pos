@@ -132,6 +132,7 @@
         ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!
       </div>
     </div>
+    <div class="drinks-section" id="drinksSection" style="display:none"></div>
     <div class="summary-footer">
       <div class="total-row">
         <div class="total-left">
@@ -259,6 +260,56 @@ const IMG = {
   'ไส้กรอกหมู': 'images/pork-sausage.png',
   'ชีสเค้ก': 'images/cheesecake.png',
   'ช็อคโกแลตชีสเค้ก': 'images/chocolate-cheesecake.png',
+
+  // ── รูปจริงจาก LINE MAN (sync 2026-08-24) ──
+  'เนื้ออกไก่สไลด์':      'images/lm-chicken-breast-slice.jpg',
+  'สามชั้นหมูสไลด์':      'images/lm-pork-belly-slice.jpg',
+  'สันคอหมูสไลด์':        'images/lm-pork-neck-slice.jpg',
+  'สันคอเนื้อสไลด์':      'images/lm-beef-neck-slice.jpg',
+  'ปลาหมึก':              'images/lm-squid.jpg',
+  'ปลาดอลลี่':            'images/lm-dory-fish.jpg',
+  'กุ้งแก้ว':              'images/lm-crystal-shrimp.jpg',
+  'ผักกาดขาวฮองเฮา':     'images/lm-napa-cabbage-honghao.jpg',
+  'เห็ดออรินจิ':          'images/lm-eringi-lm.jpg',
+  'รากบัว':               'images/lm-lotus-root.jpg',
+  'เส้นมันเทศแบน':        'images/lm-sweet-potato-noodle.jpg',
+  'เส้นรากเฟิร์น':        'images/lm-fern-root-noodle.jpg',
+  'วุ้นเส้นจีน':          'images/lm-glass-noodle-lm.jpg',
+  'ชิกูวะ':               'images/lm-chikuwa-lm.jpg',
+  'ปูอัดเบนโตะ':          'images/lm-crab-stick-bento.jpg',
+  'ปลาหมึกฮอกไกโด':      'images/lm-squid-hokkaido.jpg',
+  'ไส้กรอกไก่หนังกรอบ':  'images/lm-crispy-chicken-sausage.jpg',
+  'เต้าหู้ปลา':            'images/lm-fish-tofu-lm.jpg',
+  'ทูโทนชิชาโมะ':        'images/lm-two-tone-shishamo.jpg',
+  'ฟองเต้าหู้ซีฟู้ด':      'images/lm-tofu-skin-seafood.jpg',
+  'ลูกชิ้นกุ้งมังกร':      'images/lm-lobster-ball.jpg',
+  'ฟองเต้าหู้ม้วนกรอบ (1 ชิ้น)': 'images/lm-tofu-skin-roll-1pc.jpg',
+  'ฟองเต้าหู้ม้วนกรอบ (2 ชิ้น)': 'images/lm-tofu-skin-roll-2pc.jpg',
+  'ฟองเต้าหู้สด':          'images/lm-fresh-tofu-skin.jpg',
+  'น้ำดื่ม':               'images/lm-drinking-water.jpg',
+  'น้ำแร่มองต์เฟลอร์':    'images/lm-mont-fleur-water.jpg',
+  'โค้ก ออริจินัล (กระป๋อง)':      'images/lm-coke-original.jpg',
+  'โค้ก ไม่มีน้ำตาล (กระป๋อง)':   'images/lm-coke-zero.jpg',
+  'ชเวปส์มะนาวโซดา ไม่มีน้ำตาล':  'images/lm-schweppes-lemon-soda.jpg',
+  'น้ำจิ้มสุกี้':          'images/lm-suki-sauce.jpg',
+  'น้ำจิ้มสูตรทางร้าน':   'images/lm-house-sauce.jpg',
+  'ซอสงาคั่วสไตล์ญี่ปุ่น': 'images/lm-roasted-sesame-sauce.jpg',
+  'ปอนซึยูซุสไตล์ญี่ปุ่น': 'images/lm-ponzu-yuzu-sauce.jpg',
+  'ซุปน้ำใสสไตล์ญี่ปุ่น':  'images/lm-japanese-clear-soup.jpg',
+  'ซุปน้ำดำปลาแห้ง':      'images/lm-dried-fish-dark-soup.jpg',
+  'ซุปทงคตสึ':             'images/lm-tonkotsu-soup.jpg',
+  'ซุปหม่าล่าทงคตสึ (เผ็ดปกติ)': 'images/lm-mala-tonkotsu-soup.jpg',
+  'ซุปหม่าล่าทงคตสึ (เผ็ดน้อย)': 'images/lm-mala-tonkotsu-soup.jpg',
+  // อัปเกรดเป็นรูปจริงจาก LINE MAN แทนไอคอนเดิม (ชื่อเมนูไม่เปลี่ยน คีย์เดิม)
+  'มันฝรั่ง':              'images/lm-potato-lm.jpg',
+  'กะหล่ำปลีหั่นฝอย':      'images/lm-cabbage-lm.jpg',
+  'ผักบุ้งจีน':            'images/lm-morning-glory-lm.jpg',
+  'แครอท':                 'images/lm-carrot-lm.jpg',
+  'เห็ดหอม':               'images/lm-shiitake-lm.jpg',
+  'สาหร่ายวากาเมะ':        'images/lm-wakame-lm.jpg',
+  'ข้าวโพดอ่อน':           'images/lm-baby-corn-lm.jpg',
+  'เต้าหู้ชีส':             'images/lm-cheese-tofu-lm.jpg',
+  'เต้าหู้ปลาสี่เหลี่ยม':   'images/lm-fish-tofu-square-lm.jpg',
 };
 
 
@@ -331,7 +382,8 @@ const DEFAULT_MENU_FALLBACK = {
   desserts: [
   { id:'d1', name:'ชีสเค้ก', price:79,img:'ชีสเค้ก',  desc:'ชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
   { id:'d2', name:'ช็อคโกแลตชีสเค้ก', price:79, img:'ช็อคโกแลตชีสเค้ก', desc:'ช็อคโกแลตชีสเค้กสไตล์ญี่ปุ่นแบบไม่ใช้การอบ' },
-  ]
+  ],
+  drinks: [],
 };
 
 // ประกาศ MENU เป็น null ก่อน
@@ -353,6 +405,7 @@ let completedBowls = []; // array of bowl objects
 let currentBowl = null;
 let currentStep = 0;
 let lastPayInfo = {};
+let orderDrinks = {}; // { itemId: qty } — เครื่องดื่มเพิ่มได้ทั้งออเดอร์ ไม่ผูกกับชามไหนชามหนึ่ง
 
 // ============================================================
 // CLOCK
@@ -381,7 +434,55 @@ function bowlTotal(bowl) {
 }
 
 function calcGrandTotal() {
-  return completedBowls.reduce((s,b)=>s+bowlTotal(b), 0);
+  return completedBowls.reduce((s,b)=>s+bowlTotal(b), 0) + drinksTotal();
+}
+
+// ============================================================
+// DRINKS — เพิ่มได้ทั้งออเดอร์ ไม่ผูกกับชามไหนชามหนึ่ง
+// เก็บเป็น { itemId: qty } แทนที่จะเป็น array ซ้ำๆ เหมือนของในชาม
+// เพราะกด +/- ทีละหน่วยง่ายกว่า
+// ============================================================
+function drinksArrayFrom(drinksObj) {
+  // แปลง { itemId: qty } → array ของ item object ซ้ำตามจำนวน
+  // เพื่อใช้ร่วมกับ groupItems() ตัวเดียวกับที่ชามใช้
+  return Object.entries(drinksObj || {}).flatMap(function([id, qty]) {
+    const item = (MENU.drinks || []).find(function(d) { return d.id === id; });
+    return item ? Array(qty).fill(item) : [];
+  });
+}
+
+function drinksTotal() {
+  return drinksArrayFrom(orderDrinks).reduce((s,i)=>s+i.price, 0);
+}
+
+function changeDrinkQty(id, delta) {
+  const item = (MENU.drinks || []).find(function(d) { return d.id === id; });
+  if (!item) return;
+  const next = Math.max(0, (orderDrinks[id] || 0) + delta);
+  if (next === 0) delete orderDrinks[id];
+  else orderDrinks[id] = next;
+  renderSummary();
+}
+
+function renderDrinksSection() {
+  const el = document.getElementById('drinksSection');
+  const drinks = MENU.drinks || [];
+  if (drinks.length === 0) { el.style.display = 'none'; return; }
+
+  el.style.display = 'block';
+  el.innerHTML = '<div class="drinks-title">🥤 เครื่องดื่ม (เพิ่มได้ทั้งออเดอร์)</div>' +
+    drinks.map(function(d) {
+      const qty = orderDrinks[d.id] || 0;
+      return '<div class="drink-row">' +
+        '<span class="drink-name">' + (d.emoji || '🥤') + ' ' + d.name + '</span>' +
+        '<span class="drink-price">฿' + d.price + '</span>' +
+        '<div class="drink-qty">' +
+          '<button onclick="changeDrinkQty(\'' + d.id + '\',-1)" ' + (qty===0?'disabled':'') + '>−</button>' +
+          '<span class="drink-qty-val">' + qty + '</span>' +
+          '<button onclick="changeDrinkQty(\'' + d.id + '\',1)">+</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
 }
 
 // ============================================================
@@ -787,11 +888,20 @@ function startNewBowl() {
 function renderSummary() {
   const el = document.getElementById('summaryOrders');
   const panel = document.querySelector('.summary-panel');
-  if (completedBowls.length === 0) {
+  renderDrinksSection();
+  const hasDrinks = Object.keys(orderDrinks).length > 0;
+  // ให้ panel โชว์อยู่ถ้ามีชาม หรือสั่งแค่เครื่องดื่มอย่างเดียวก็ได้ ไม่ต้องมีชามก่อน
+  if (completedBowls.length === 0 && !hasDrinks) {
     panel.style.display = 'none';
     panel.classList.remove('visible');
     el.innerHTML = `<div class="empty-summary"><span class="big">🍲</span>ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!</div>`;
     document.getElementById('btnCash').disabled = true;
+  } else if (completedBowls.length === 0) {
+    // มีแต่เครื่องดื่ม ยังไม่มีชามเลย
+    panel.style.display = 'flex';
+    panel.classList.add('visible');
+    el.innerHTML = `<div class="empty-summary"><span class="big">🥤</span>ยังไม่มีชามชาบู<br>สั่งเครื่องดื่มอย่างเดียวได้เหมือนกัน</div>`;
+    document.getElementById('btnCash').disabled = false;
   } else {
     panel.style.display = 'flex';
     panel.classList.add('visible');
@@ -827,6 +937,7 @@ function clearAll() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
+  orderDrinks = {};
   renderSummary();
   startNewBowl();
 }
@@ -1014,6 +1125,7 @@ async function loadMenuFromSheets() {
         soups:    [], // น้ำซุป
         sauces:   [], // น้ำจิ้ม
         desserts: [], // ของหวาน
+        drinks:   [], // เครื่องดื่ม (เพิ่มได้ทั้งออเดอร์ ไม่ใช่ต่อชาม)
       };
  
       data.forEach(item => {
@@ -1066,7 +1178,7 @@ async function loadMenuFromSheets() {
 
 function saveToSheets(payInfo) {
   // สรุปรายการสินค้าทุกชามเป็นข้อความเดียว
-  const itemsSummary = payInfo.bowls.map((bowl, i) => {
+  const bowlSegments = payInfo.bowls.map((bowl, i) => {
     const lines = [
       ...groupItems(bowl.meats,'🥩'),
       ...groupItems(bowl.vegs,'🥬'),
@@ -1075,7 +1187,14 @@ function saveToSheets(payInfo) {
       ...groupItems(bowl.desserts)
     ].map(g => g.nameStr + ' ' + g.priceStr).join(', ');
     return 'ชามที่'+(i+1)+': '+lines;
-  }).join(' | ');
+  });
+
+  // เครื่องดื่ม ไม่ผูกกับชามไหน ต่อท้ายเป็น segment แยกถ้ามีการสั่ง
+  const drinkLines = groupItems(drinksArrayFrom(payInfo.drinks), '🥤')
+    .map(g => g.nameStr + ' ' + g.priceStr).join(', ');
+  if (drinkLines) bowlSegments.push('เครื่องดื่ม: ' + drinkLines);
+
+  const itemsSummary = bowlSegments.join(' | ');
 
   const now = new Date();
   const date = now.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'numeric'});
@@ -1103,7 +1222,7 @@ function saveToSheets(payInfo) {
 function confirmPay(type) {
   const total = calcGrandTotal();
   const recv = type==='cash' ? parseFloat(document.getElementById('cashInput').value) : total;
-  lastPayInfo = { type, bowls: [...completedBowls], total, recv, change: recv-total,
+  lastPayInfo = { type, bowls: [...completedBowls], drinks: {...orderDrinks}, total, recv, change: recv-total,
     time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) };
   closeOverlay(type==='cash'?'cashOverlay':'qrOverlay');
   saveToSheets(lastPayInfo);  // บันทึกไป Google Sheets
@@ -1124,6 +1243,16 @@ function showSuccess() {
     return `<div class="receipt-row" style="color:var(--gold);font-weight:600"><span>🍲 ชามที่ ${idx+1}</span><span>฿${bowlTotal(bowl)}</span></div>${lines}`;
   }).join('<hr class="receipt-divider">');
 
+  // เครื่องดื่ม (ถ้ามีสั่ง) — ต่อท้ายชามทั้งหมด ไม่ผูกกับชามไหน
+  const drinkArr = drinksArrayFrom(p.drinks);
+  let drinkRows = '';
+  if (drinkArr.length > 0) {
+    const lines = groupItems(drinkArr, '🥤')
+      .map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`).join('');
+    drinkRows = (bowlRows ? '<hr class="receipt-divider">' : '') +
+      `<div class="receipt-row" style="color:var(--gold);font-weight:600"><span>🥤 เครื่องดื่ม</span><span>฿${drinkArr.reduce((s,i)=>s+i.price,0)}</span></div>${lines}`;
+  }
+
   let extra = p.type==='cash'
     ? `<div class="receipt-row"><span>รับมา</span><span>฿${p.recv}</span></div><div class="receipt-row receipt-total"><span>เงินทอน</span><span style="color:var(--green)">฿${p.change}</span></div>`
     : '';
@@ -1133,6 +1262,7 @@ function showSuccess() {
     <div class="receipt-row"><span>${orderType==='dine'?'🪑 โต๊ะ '+tableNum:'🥡 สั่งกลับบ้าน'}</span></div>
     <hr class="receipt-divider">
     ${bowlRows}
+    ${drinkRows}
     <hr class="receipt-divider">
     <div class="receipt-row receipt-total"><span>รวมทั้งหมด</span><span>฿${p.total}</span></div>
     ${extra}
@@ -1142,6 +1272,7 @@ function showSuccess() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
+  orderDrinks = {};
   document.getElementById('addBowlBtn').style.display = 'none';
   renderSummary();
   startNewBowl();
@@ -1152,6 +1283,7 @@ function newOrderSameTable() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
+  orderDrinks = {};
   startNewBowl();
   renderSummary();
   document.getElementById('stepContent').innerHTML = '';
@@ -1166,6 +1298,7 @@ function resetPOS() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
+  orderDrinks = {};
   orderType = null;
   tableNum = null;
 

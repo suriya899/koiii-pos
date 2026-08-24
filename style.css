@@ -666,6 +666,46 @@ header {
 }
 .bowl-item-row span:first-child { color: var(--text); }
 
+/* ============================================================
+   16b. DRINKS SECTION — เครื่องดื่ม เพิ่มได้ทั้งออเดอร์ ไม่ผูกกับชาม
+   ============================================================ */
+.drinks-section {
+  padding: 8px 12px;
+  border-top: 1px dashed var(--border);
+}
+.drinks-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+.drink-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.75rem;
+}
+.drink-name { color: var(--text); flex: 1; min-width: 0; }
+.drink-price { color: var(--text-muted); white-space: nowrap; }
+.drink-qty { display: flex; align-items: center; gap: 6px; }
+.drink-qty button {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.drink-qty button:disabled { opacity: 0.35; cursor: not-allowed; }
+.drink-qty button:hover:not(:disabled) { border-color: var(--accent2); color: var(--accent2); }
+.drink-qty-val { min-width: 16px; text-align: center; font-weight: 600; color: var(--text); }
+
 
 /* ============================================================
    17. SUMMARY FOOTER — ส่วนล่างของ summary: ยอดรวม + ปุ่มชำระเงิน
