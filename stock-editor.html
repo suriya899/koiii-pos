@@ -510,6 +510,14 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 .formula-note { font-size: 0.7rem; color: var(--dim); line-height: 1.7; background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
 .formula-note strong { color: var(--muted); }
 
+/* ตัวช่วยคำนวณต้นทุนวัตถุดิบจากราคาที่ซื้อ */
+.cost-helper { background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+.cost-helper-title { font-size: 0.72rem; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.cost-helper-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.cost-helper-grid label { font-size: 0.68rem; color: var(--dim); margin-bottom: 3px; display: block; }
+.ci-sm { padding: 6px 8px; font-size: 0.78rem; }
+.cost-helper-result { font-size: 0.75rem; color: var(--green); font-weight: 600; margin-top: 8px; min-height: 1.1em; }
+
 /* ประวัติการคำนวณราคา */
 .hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
 .hist-row:last-child { border-bottom: none; }
@@ -606,6 +614,27 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
           <label>ต้นทุนวัตถุดิบ (฿/order)</label>
           <!-- oninput = คำนวณทุกครั้งที่พิมพ์ -->
           <input type="number" class="ci" id="calcCost" placeholder="0.00" min="0" step="0.01" oninput="calcPrice()">
+
+          <!-- ตัวช่วยคำนวณต้นทุนจาก "ราคาที่ซื้อ" แทนที่จะกดเครื่องคิดเลขเอง
+               เช่น หมูสไลด์ 205฿/1000g ใช้ 50g/order → เติม 10.25 ให้อัตโนมัติ -->
+          <div class="cost-helper">
+            <div class="cost-helper-title">🧮 หรือคำนวณจากราคาที่ซื้อ</div>
+            <div class="cost-helper-grid">
+              <div>
+                <label>ราคาที่ซื้อ (฿)</label>
+                <input type="number" class="ci ci-sm" id="helpBuyPrice" placeholder="เช่น 205" min="0" step="0.01" oninput="calcCostHelper()">
+              </div>
+              <div>
+                <label>ปริมาณที่ซื้อ</label>
+                <input type="number" class="ci ci-sm" id="helpBuyQty" placeholder="เช่น 1000" min="0" step="0.01" oninput="calcCostHelper()">
+              </div>
+              <div>
+                <label>ใช้ต่อเสิร์ฟ</label>
+                <input type="number" class="ci ci-sm" id="helpServeQty" placeholder="เช่น 50" min="0" step="0.01" oninput="calcCostHelper()">
+              </div>
+            </div>
+            <div class="cost-helper-result" id="costHelperResult"></div>
+          </div>
         </div>
 
         <div class="cf">
@@ -621,8 +650,8 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
           <div class="platform-tabs">
             <!-- setPlatform(gp, btn) — ตั้งค่า GP% และอัปเดต active class -->
             <div class="ptab active" onclick="setPlatform(0,   this)">🏪 หน้าร้าน</div>
-            <div class="ptab"        onclick="setPlatform(30,  this)">🟢 Grab (~30%)</div>
-            <div class="ptab"        onclick="setPlatform(30,  this)">🟡 LINE MAN (~30%)</div>
+            <div class="ptab"        onclick="setPlatform(32.1, this)">🟢 Grab (~32.1%)</div>
+            <div class="ptab"        onclick="setPlatform(32.1, this)">🟡 LINE MAN (~32.1%)</div>
             <div class="ptab"        onclick="setPlatform(-1,  this)">✏️ กำหนดเอง</div>
           </div>
         </div>
@@ -1639,6 +1668,38 @@ function setPlatform(gp, btn) {
     cf.style.display = 'none';
     currentGP = gp; // ใช้ค่าที่ตั้งไว้เลย
   }
+  calcPrice();
+}
+
+// calcCostHelper — คำนวณต้นทุนวัตถุดิบจาก "ราคาที่ซื้อ" แทนเครื่องคิดเลข
+//
+// สูตร: ต้นทุนต่อหน่วย = ราคาที่ซื้อ ÷ ปริมาณที่ซื้อ
+//       ต้นทุนต่อ order = ต้นทุนต่อหน่วย × ใช้ต่อเสิร์ฟ
+//
+// ตัวอย่าง: หมูสไลด์ 205฿ / 1000g ใช้ 50g ต่อ order
+//   → 205 ÷ 1000 = 0.205 ฿/g → × 50 = 10.25 ฿/order
+//
+// ทำงานได้กับทุกหน่วย (กรัม/ชิ้น/มล.) เพราะเป็นแค่สัดส่วนราคาต่อปริมาณ
+// ไม่ได้ผูกกับหน่วยใดหน่วยหนึ่งโดยเฉพาะ
+function calcCostHelper() {
+  const buyPrice = parseFloat(document.getElementById('helpBuyPrice').value) || 0;
+  const buyQty   = parseFloat(document.getElementById('helpBuyQty').value)   || 0;
+  const serveQty = parseFloat(document.getElementById('helpServeQty').value) || 0;
+  const resultEl = document.getElementById('costHelperResult');
+
+  // รอจนกรอกครบ 3 ช่อง ถึงคำนวณ ป้องกันหารด้วย 0
+  if (buyPrice <= 0 || buyQty <= 0 || serveQty <= 0) {
+    resultEl.textContent = '';
+    return;
+  }
+
+  const costPerUnit  = buyPrice / buyQty;     // ฿ ต่อ 1 หน่วยที่ซื้อ
+  const costPerServe = costPerUnit * serveQty; // ฿ ต่อ order
+
+  resultEl.textContent = '= ฿' + costPerServe.toFixed(2) + ' /order  (฿' + costPerUnit.toFixed(4) + ' ต่อหน่วย)';
+
+  // เติมลงช่อง "ต้นทุนวัตถุดิบ" อัตโนมัติ แล้วคำนวณราคาขายต่อทันที
+  document.getElementById('calcCost').value = costPerServe.toFixed(2);
   calcPrice();
 }
 
