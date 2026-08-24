@@ -132,7 +132,6 @@
         ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!
       </div>
     </div>
-    <div class="drinks-section" id="drinksSection" style="display:none"></div>
     <div class="summary-footer">
       <div class="total-row">
         <div class="total-left">
@@ -395,6 +394,7 @@ const STEPS = [
   { id:'veg', label:'ผัก/เครื่อง', icon:'🥬' },
   { id:'soup', label:'น้ำซุป', icon:'🍲' },
   { id:'sauce', label:'น้ำจิ้ม', icon:'🥜' },
+  { id:'drink', label:'เครื่องดื่ม', icon:'🥤' },
   { id:'dessert', label:'ของหวาน', icon:'🍰' },
 ];
 
@@ -405,7 +405,6 @@ let completedBowls = []; // array of bowl objects
 let currentBowl = null;
 let currentStep = 0;
 let lastPayInfo = {};
-let orderDrinks = {}; // { itemId: qty } — เครื่องดื่มเพิ่มได้ทั้งออเดอร์ ไม่ผูกกับชามไหนชามหนึ่ง
 
 // ============================================================
 // CLOCK
@@ -421,7 +420,7 @@ updateClock();
 // BOWL HELPERS
 // ============================================================
 function newBowl() {
-  return { id: Date.now(), meats:[], vegs:[], soups:[], sauces:[], desserts:[] };
+  return { id: Date.now(), meats:[], vegs:[], soups:[], sauces:[], drinks:[], desserts:[] };
 }
 
 function bowlTotal(bowl) {
@@ -429,60 +428,13 @@ function bowlTotal(bowl) {
   const v = bowl.vegs.reduce((s,i)=>s+i.price, 0);
   const s = bowl.soups.reduce((a,i)=>a+i.price,0);
   const sc = bowl.sauces.reduce((a,i)=>a+i.price,0);
+  const dr = bowl.drinks.reduce((a,i)=>a+i.price,0);
   const d = bowl.desserts.reduce((a,i)=>a+i.price,0);
-  return m + v + s + sc + d;
+  return m + v + s + sc + dr + d;
 }
 
 function calcGrandTotal() {
-  return completedBowls.reduce((s,b)=>s+bowlTotal(b), 0) + drinksTotal();
-}
-
-// ============================================================
-// DRINKS — เพิ่มได้ทั้งออเดอร์ ไม่ผูกกับชามไหนชามหนึ่ง
-// เก็บเป็น { itemId: qty } แทนที่จะเป็น array ซ้ำๆ เหมือนของในชาม
-// เพราะกด +/- ทีละหน่วยง่ายกว่า
-// ============================================================
-function drinksArrayFrom(drinksObj) {
-  // แปลง { itemId: qty } → array ของ item object ซ้ำตามจำนวน
-  // เพื่อใช้ร่วมกับ groupItems() ตัวเดียวกับที่ชามใช้
-  return Object.entries(drinksObj || {}).flatMap(function([id, qty]) {
-    const item = (MENU.drinks || []).find(function(d) { return d.id === id; });
-    return item ? Array(qty).fill(item) : [];
-  });
-}
-
-function drinksTotal() {
-  return drinksArrayFrom(orderDrinks).reduce((s,i)=>s+i.price, 0);
-}
-
-function changeDrinkQty(id, delta) {
-  const item = (MENU.drinks || []).find(function(d) { return d.id === id; });
-  if (!item) return;
-  const next = Math.max(0, (orderDrinks[id] || 0) + delta);
-  if (next === 0) delete orderDrinks[id];
-  else orderDrinks[id] = next;
-  renderSummary();
-}
-
-function renderDrinksSection() {
-  const el = document.getElementById('drinksSection');
-  const drinks = MENU.drinks || [];
-  if (drinks.length === 0) { el.style.display = 'none'; return; }
-
-  el.style.display = 'block';
-  el.innerHTML = '<div class="drinks-title">🥤 เครื่องดื่ม (เพิ่มได้ทั้งออเดอร์)</div>' +
-    drinks.map(function(d) {
-      const qty = orderDrinks[d.id] || 0;
-      return '<div class="drink-row">' +
-        '<span class="drink-name">' + (d.emoji || '🥤') + ' ' + d.name + '</span>' +
-        '<span class="drink-price">฿' + d.price + '</span>' +
-        '<div class="drink-qty">' +
-          '<button onclick="changeDrinkQty(\'' + d.id + '\',-1)" ' + (qty===0?'disabled':'') + '>−</button>' +
-          '<span class="drink-qty-val">' + qty + '</span>' +
-          '<button onclick="changeDrinkQty(\'' + d.id + '\',1)">+</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
+  return completedBowls.reduce((s,b)=>s+bowlTotal(b), 0);
 }
 
 // ============================================================
@@ -545,6 +497,7 @@ function renderPreview() {
   currentBowl.vegs.forEach(function(i) { addChip(i.name); });
   currentBowl.soups.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
   currentBowl.sauces.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
+  currentBowl.drinks.forEach(function(i) { addChip((i.emoji||'🥤') + ' ' + i.name); });
   currentBowl.desserts.forEach(function(i) { addChip(i.emoji + ' ' + i.name); });
 
   const keys = Object.keys(countMap).sort(function(a,b) { return orderMap[a]-orderMap[b]; });
@@ -575,29 +528,25 @@ function renderStepContent() {
   const step = STEPS[currentStep];
   let html = '';
 
+  // ทุกหมวดกดข้ามได้หมด (canNext เป็น true เสมอ) — การ์ด "ไม่ต้องการ..."
+  // มีไว้ให้กดยืนยันชัดๆ ว่าตั้งใจข้าม ไม่ใช่แค่ลืมเลือก
   if (step.id === 'meat') {
-    html = renderMultiSelect('meats', MENU.meats, currentBowl.meats);
-    renderNav(currentBowl.meats.length > 0, false, '→ เลือกผัก/เครื่อง');
+    html = renderMultiSelect('meats', MENU.meats, currentBowl.meats, noneCard('meats', 'ไม่ต้องการเนื้อสัตว์'));
+    renderNav(true, false, '→ เลือกผัก/เครื่อง');
   } else if (step.id === 'veg') {
-    html = renderMultiSelect('vegs', MENU.vegs, currentBowl.vegs);
-    renderNav(currentBowl.vegs.length > 0, true, '→ เลือกน้ำซุป');
+    html = renderMultiSelect('vegs', MENU.vegs, currentBowl.vegs, noneCard('vegs', 'ไม่ต้องการผัก/เครื่อง'));
+    renderNav(true, true, '→ เลือกน้ำซุป');
   } else if (step.id === 'soup') {
-    html = renderMultiSelect('soups', MENU.soups, currentBowl.soups);
-    renderNav(currentBowl.soups.length > 0, true, '→ เลือกน้ำจิ้ม');
+    html = renderMultiSelect('soups', MENU.soups, currentBowl.soups, noneCard('soups', 'ไม่ต้องการน้ำซุป'));
+    renderNav(true, true, '→ เลือกน้ำจิ้ม');
   } else if (step.id === 'sauce') {
-    html = renderMultiSelect('sauces', MENU.sauces, currentBowl.sauces);
-    renderNav(currentBowl.sauces.length > 0, true, '→ ของหวาน');
+    html = renderMultiSelect('sauces', MENU.sauces, currentBowl.sauces, noneCard('sauces', 'ไม่ต้องการน้ำจิ้ม'));
+    renderNav(true, true, '→ เครื่องดื่ม');
+  } else if (step.id === 'drink') {
+    html = renderMultiSelect('drinks', MENU.drinks, currentBowl.drinks, noneCard('drinks', 'ไม่ต้องการเครื่องดื่ม'), true);
+    renderNav(true, true, '→ ของหวาน');
   } else if (step.id === 'dessert') {
-    html = renderMultiSelect('desserts', MENU.desserts, currentBowl.desserts, (function() {
-    const noneSelected = currentBowl.desserts.length === 0;
-    return '<div class="item-card ' + (noneSelected ? 'selected' : '') + '" data-id="desserts-none"'
-      + ' style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;"'
-      + ' onclick="clearDesserts()">'
-      + (noneSelected ? '<div class="check-badge">✓</div>' : '')
-      + '<span style="font-size:1.4rem">🚫</span>'
-      + '<span style="font-size:0.95rem;font-weight:600;color:var(--text-muted)">ไม่ต้องการของหวาน</span>'
-      + '</div>';
-  })(), true);
+    html = renderMultiSelect('desserts', MENU.desserts, currentBowl.desserts, noneCard('desserts', 'ไม่ต้องการของหวาน'), true);
     renderNav(true, true, '✓ เพิ่มชามนี้');
   }
 
@@ -747,7 +696,7 @@ function cancelNewBowl() {
 // ============================================================
 function addItem(field, itemId) {
   if (!currentBowl) return;
-  const sourceMap = { meats: MENU.meats, vegs: MENU.vegs, soups: MENU.soups, sauces: MENU.sauces, desserts: MENU.desserts };
+  const sourceMap = { meats: MENU.meats, vegs: MENU.vegs, soups: MENU.soups, sauces: MENU.sauces, drinks: MENU.drinks, desserts: MENU.desserts };
   const source = sourceMap[field] || [];
   const item = source.find(i=>i.id===itemId);
   currentBowl[field].push(item);
@@ -888,20 +837,11 @@ function startNewBowl() {
 function renderSummary() {
   const el = document.getElementById('summaryOrders');
   const panel = document.querySelector('.summary-panel');
-  renderDrinksSection();
-  const hasDrinks = Object.keys(orderDrinks).length > 0;
-  // ให้ panel โชว์อยู่ถ้ามีชาม หรือสั่งแค่เครื่องดื่มอย่างเดียวก็ได้ ไม่ต้องมีชามก่อน
-  if (completedBowls.length === 0 && !hasDrinks) {
+  if (completedBowls.length === 0) {
     panel.style.display = 'none';
     panel.classList.remove('visible');
     el.innerHTML = `<div class="empty-summary"><span class="big">🍲</span>ยังไม่มีออเดอร์<br>เริ่มเลือกเมนูได้เลย!</div>`;
     document.getElementById('btnCash').disabled = true;
-  } else if (completedBowls.length === 0) {
-    // มีแต่เครื่องดื่ม ยังไม่มีชามเลย
-    panel.style.display = 'flex';
-    panel.classList.add('visible');
-    el.innerHTML = `<div class="empty-summary"><span class="big">🥤</span>ยังไม่มีชามชาบู<br>สั่งเครื่องดื่มอย่างเดียวได้เหมือนกัน</div>`;
-    document.getElementById('btnCash').disabled = false;
   } else {
     panel.style.display = 'flex';
     panel.classList.add('visible');
@@ -911,6 +851,7 @@ function renderSummary() {
         ...groupItems(bowl.vegs,'🥬').map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
         ...groupItems(bowl.soups).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
         ...groupItems(bowl.sauces).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+        ...groupItems(bowl.drinks,'🥤').map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
         ...groupItems(bowl.desserts).map(g=>`<div class="bowl-item-row"><span>${g.nameStr}</span><span>${g.priceStr}</span></div>`),
       ].filter(Boolean).join('');
       return `<div class="bowl-card ${idx===completedBowls.length-1?'new':''}">
@@ -937,7 +878,6 @@ function clearAll() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
-  orderDrinks = {};
   renderSummary();
   startNewBowl();
 }
@@ -958,6 +898,9 @@ function buildOrderListHtml(targetId) {
       rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
     });
     groupItems(bowl.sauces).forEach(function(g) {
+      rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
+    });
+    groupItems(bowl.drinks,'🥤').forEach(function(g) {
       rows += '<div class="modal-item-row"><span>&nbsp;&nbsp;' + g.nameStr + '</span><span>' + g.priceStr + '</span></div>';
     });
     groupItems(bowl.desserts).forEach(function(g) {
@@ -1178,23 +1121,17 @@ async function loadMenuFromSheets() {
 
 function saveToSheets(payInfo) {
   // สรุปรายการสินค้าทุกชามเป็นข้อความเดียว
-  const bowlSegments = payInfo.bowls.map((bowl, i) => {
+  const itemsSummary = payInfo.bowls.map((bowl, i) => {
     const lines = [
       ...groupItems(bowl.meats,'🥩'),
       ...groupItems(bowl.vegs,'🥬'),
       ...groupItems(bowl.soups),
       ...groupItems(bowl.sauces),
+      ...groupItems(bowl.drinks,'🥤'),
       ...groupItems(bowl.desserts)
     ].map(g => g.nameStr + ' ' + g.priceStr).join(', ');
     return 'ชามที่'+(i+1)+': '+lines;
-  });
-
-  // เครื่องดื่ม ไม่ผูกกับชามไหน ต่อท้ายเป็น segment แยกถ้ามีการสั่ง
-  const drinkLines = groupItems(drinksArrayFrom(payInfo.drinks), '🥤')
-    .map(g => g.nameStr + ' ' + g.priceStr).join(', ');
-  if (drinkLines) bowlSegments.push('เครื่องดื่ม: ' + drinkLines);
-
-  const itemsSummary = bowlSegments.join(' | ');
+  }).join(' | ');
 
   const now = new Date();
   const date = now.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'numeric'});
@@ -1222,7 +1159,7 @@ function saveToSheets(payInfo) {
 function confirmPay(type) {
   const total = calcGrandTotal();
   const recv = type==='cash' ? parseFloat(document.getElementById('cashInput').value) : total;
-  lastPayInfo = { type, bowls: [...completedBowls], drinks: {...orderDrinks}, total, recv, change: recv-total,
+  lastPayInfo = { type, bowls: [...completedBowls], total, recv, change: recv-total,
     time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) };
   closeOverlay(type==='cash'?'cashOverlay':'qrOverlay');
   saveToSheets(lastPayInfo);  // บันทึกไป Google Sheets
@@ -1238,20 +1175,11 @@ function showSuccess() {
       ...groupItems(bowl.vegs,'🥬').map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
       ...groupItems(bowl.soups).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
       ...groupItems(bowl.sauces).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
+      ...groupItems(bowl.drinks,'🥤').map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
       ...groupItems(bowl.desserts).map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`),
     ].filter(Boolean).join('');
     return `<div class="receipt-row" style="color:var(--gold);font-weight:600"><span>🍲 ชามที่ ${idx+1}</span><span>฿${bowlTotal(bowl)}</span></div>${lines}`;
   }).join('<hr class="receipt-divider">');
-
-  // เครื่องดื่ม (ถ้ามีสั่ง) — ต่อท้ายชามทั้งหมด ไม่ผูกกับชามไหน
-  const drinkArr = drinksArrayFrom(p.drinks);
-  let drinkRows = '';
-  if (drinkArr.length > 0) {
-    const lines = groupItems(drinkArr, '🥤')
-      .map(g=>`<div class="receipt-row"><span>&nbsp;&nbsp;${g.nameStr}</span><span>${g.priceStr}</span></div>`).join('');
-    drinkRows = (bowlRows ? '<hr class="receipt-divider">' : '') +
-      `<div class="receipt-row" style="color:var(--gold);font-weight:600"><span>🥤 เครื่องดื่ม</span><span>฿${drinkArr.reduce((s,i)=>s+i.price,0)}</span></div>${lines}`;
-  }
 
   let extra = p.type==='cash'
     ? `<div class="receipt-row"><span>รับมา</span><span>฿${p.recv}</span></div><div class="receipt-row receipt-total"><span>เงินทอน</span><span style="color:var(--green)">฿${p.change}</span></div>`
@@ -1262,7 +1190,6 @@ function showSuccess() {
     <div class="receipt-row"><span>${orderType==='dine'?'🪑 โต๊ะ '+tableNum:'🥡 สั่งกลับบ้าน'}</span></div>
     <hr class="receipt-divider">
     ${bowlRows}
-    ${drinkRows}
     <hr class="receipt-divider">
     <div class="receipt-row receipt-total"><span>รวมทั้งหมด</span><span>฿${p.total}</span></div>
     ${extra}
@@ -1272,7 +1199,6 @@ function showSuccess() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
-  orderDrinks = {};
   document.getElementById('addBowlBtn').style.display = 'none';
   renderSummary();
   startNewBowl();
@@ -1283,7 +1209,6 @@ function newOrderSameTable() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
-  orderDrinks = {};
   startNewBowl();
   renderSummary();
   document.getElementById('stepContent').innerHTML = '';
@@ -1298,7 +1223,6 @@ function resetPOS() {
   completedBowls = [];
   currentBowl = null;
   currentStep = 0;
-  orderDrinks = {};
   orderType = null;
   tableNum = null;
 
@@ -1382,18 +1306,33 @@ function renderDessertMulti() {
     + '</div></div></div>';
 }
 
-function clearDesserts() {
+// clearBowlField — ล้างรายการที่เลือกในหมวดนั้นๆ ของชามปัจจุบัน
+// ใช้ร่วมกันทุกหมวดที่กด "ไม่ต้องการ..." ได้ (เนื้อสัตว์/ผัก/น้ำซุป/น้ำจิ้ม/เครื่องดื่ม/ของหวาน)
+function clearBowlField(field) {
   if (!currentBowl) return;
-  currentBowl.desserts = [];
+  currentBowl[field] = [];
   renderStepContent();
   renderPreview();
   requestAnimationFrame(() => {
-    const card = document.querySelector('.item-card[data-id="desserts-none"]');
+    const card = document.querySelector('.item-card[data-id="' + field + '-none"]');
     if (!card) return;
     void card.offsetWidth;
     card.classList.add('just-selected');
     setTimeout(() => card.classList.remove('just-selected'), 450);
   });
+}
+
+// noneCard — การ์ด "ไม่ต้องการ..." ที่วางต่อท้ายรายการสินค้าในแต่ละหมวด
+// กดแล้วล้างของที่เลือกไว้ในหมวดนั้นทั้งหมด เป็นการยืนยันว่าตั้งใจข้ามจริงๆ
+function noneCard(field, label) {
+  const noneSelected = currentBowl[field].length === 0;
+  return '<div class="item-card ' + (noneSelected ? 'selected' : '') + '" data-id="' + field + '-none"'
+    + ' style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;"'
+    + ' onclick="clearBowlField(\'' + field + '\')">'
+    + (noneSelected ? '<div class="check-badge">✓</div>' : '')
+    + '<span style="font-size:1.4rem">🚫</span>'
+    + '<span style="font-size:0.95rem;font-weight:600;color:var(--text-muted)">' + label + '</span>'
+    + '</div>';
 }
 
 function showTypeSelect() {
