@@ -510,6 +510,15 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 .formula-note { font-size: 0.7rem; color: var(--dim); line-height: 1.7; background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
 .formula-note strong { color: var(--muted); }
 
+/* ประวัติการคำนวณราคา */
+.hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
+.hist-row:last-child { border-bottom: none; }
+.hist-main { font-size: 0.85rem; color: var(--text); font-weight: 600; }
+.hist-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.hist-price { font-family: 'Prompt', sans-serif; font-size: 1rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.hist-del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.95rem; padding: 4px 6px; }
+.hist-del:hover { color: var(--red); }
+
 </style>
 </head>
 <body>
@@ -644,6 +653,17 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
             <span class="crl" style="font-weight:700;color:var(--text)">💡 ราคาขายที่แนะนำ</span>
             <span class="crv big" id="resSellPrice">—</span>
           </div>
+          <!-- แสดงเฉพาะตอนเลือกสินค้าจาก dropdown ที่มีอยู่ในเมนูจริง -->
+          <div class="calc-row" id="currentPriceRow" style="display:none">
+            <span class="crl">ราคาปัจจุบันในเมนู</span>
+            <span class="crv" id="resCurrentPrice">—</span>
+          </div>
+        </div>
+
+        <!-- ปุ่มบันทึกประวัติ / ใช้ราคาจริง -->
+        <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+          <button class="btn-outline" onclick="saveCalcHistory()">💾 บันทึกผลลัพธ์นี้ไว้ดู</button>
+          <button class="btn-green" id="btnApplyPrice" onclick="applyPriceToMenu()" disabled>✅ ใช้ราคานี้ขายจริง</button>
         </div>
 
         <hr class="calc-divider">
@@ -665,7 +685,17 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
         </div>
       </div>
 
+    </div><!-- /calc-wrap -->
+
+    <!-- ประวัติการคำนวณที่บันทึกไว้ — เก็บใน localStorage เครื่องนี้เท่านั้น -->
+    <div class="calc-card" style="margin-top:16px">
+      <div class="calc-title">🕘 ประวัติการคำนวณที่บันทึกไว้</div>
+      <div id="calcHistoryEmpty" style="font-size:0.8rem;color:var(--dim)">
+        ยังไม่มีประวัติที่บันทึกไว้ — กด "💾 บันทึกผลลัพธ์นี้ไว้ดู" ด้านบนเพื่อเก็บไว้เปรียบเทียบทีหลัง
+      </div>
+      <div id="calcHistoryList"></div>
     </div>
+
   </div><!-- /pane-price -->
 
 </main>
@@ -735,6 +765,10 @@ let hasUnsaved = false; // มีการเปลี่ยนแปลงท�
 //   Set ไม่มีค่าซ้ำ .has() .add() .delete() เร็วกว่า Array
 const openSet = new Set();
 
+// ผลคำนวณราคาล่าสุดจากเครื่องคำนวณ (tab "คำนวณราคาขาย")
+// ใช้ตอนกด "บันทึกไว้ดู" หรือ "ใช้ราคานี้ขายจริง"
+let lastCalc = null;
+
 
 // ═══════════════════════════════════════════════════════════════
 // 3. isActive() — ตรวจสอบค่า active จาก Google Sheets
@@ -762,9 +796,10 @@ function isActive(val) {
 // แต่ยังไม่ได้โหลด image/stylesheet ภายนอก
 // ═══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function() {
-  loadStockItems(); // โหลดสต็อกจาก Sheets ทันที
-  loadMenuItems();  // โหลดเมนู POS (สำหรับ dropdown + ปุ่มโหลดจากเมนู)
-  calcPrice();      // คำนวณราคาด้วยค่าเริ่มต้นก่อน
+  loadStockItems();    // โหลดสต็อกจาก Sheets ทันที
+  loadMenuItems();     // โหลดเมนู POS (สำหรับ dropdown + ปุ่มโหลดจากเมนู)
+  calcPrice();         // คำนวณราคาด้วยค่าเริ่มต้นก่อน
+  renderCalcHistory(); // แสดงประวัติการคำนวณที่เคยบันทึกไว้ (เก็บใน localStorage เครื่องนี้)
 });
 
 // beforeunload — เตือนก่อนปิด browser หรือ refresh
@@ -1667,6 +1702,33 @@ function calcPrice() {
   const pce = document.getElementById('resActualPct');
   pce.textContent = aPct.toFixed(1) + '%';
   pce.className   = 'crv ' + (aPct >= 0 ? 'profit' : 'loss');
+
+  // ── เทียบกับราคาปัจจุบันในเมนู (แสดง/เปิดปุ่ม "ใช้ราคานี้ขายจริง" ──
+  // เฉพาะตอนเลือกสินค้าจาก dropdown ที่แมตช์กับเมนูจริง เพราะต้องรู้ว่า
+  // จะเอาราคาไปอัปเดตรายการไหนใน Sheet เมนู
+  const productName = document.getElementById('calcProduct').value;
+  const menuItem     = productName ? menuItems.find(function(m) { return m.name === productName; }) : null;
+  const currentRow   = document.getElementById('currentPriceRow');
+  const applyBtn      = document.getElementById('btnApplyPrice');
+
+  if (menuItem) {
+    currentRow.style.display = 'flex';
+    document.getElementById('resCurrentPrice').textContent = '฿' + menuItem.price;
+    applyBtn.disabled = false;
+  } else {
+    currentRow.style.display = 'none';
+    applyBtn.disabled = true;
+  }
+
+  // เก็บผลลัพธ์ล่าสุดไว้ใช้ตอนกด "บันทึกไว้ดู" หรือ "ใช้ราคานี้ขายจริง"
+  lastCalc = {
+    productName:    productName || '',
+    total:          total,
+    gpPercent:      currentGP,
+    profitPercent:  profit,
+    sellPrice:      Math.ceil(sell),
+    platformLabel:  document.getElementById('platformLabel').textContent
+  };
 }
 
 // clearCalcResults — ล้างผลลัพธ์ทั้งหมดเป็น "—"
@@ -1676,6 +1738,127 @@ function clearCalcResults() {
     const el = document.getElementById(id);
     if (el) el.textContent = '—';
   });
+  document.getElementById('currentPriceRow').style.display = 'none';
+  document.getElementById('btnApplyPrice').disabled = true;
+  lastCalc = null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ประวัติการคำนวณ — เก็บใน localStorage ของเครื่องนี้เท่านั้น
+// (ไม่เกี่ยวกับ Google Sheets เป็นแค่บันทึกช่วยจำส่วนตัว)
+// ═══════════════════════════════════════════════════════════════
+
+// saveCalcHistory — บันทึกผลคำนวณปัจจุบันไว้ดูทีหลัง
+function saveCalcHistory() {
+  if (!lastCalc || !lastCalc.total || lastCalc.total <= 0) {
+    showStatus('⚠️ กรุณากรอกต้นทุนก่อนบันทึก', 'error');
+    return;
+  }
+
+  const history = getCalcHistory();
+  history.unshift(Object.assign({}, lastCalc, {
+    savedAt: new Date().toLocaleString('th-TH', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    })
+  }));
+
+  // เก็บแค่ 30 รายการล่าสุด กัน localStorage บวม
+  localStorage.setItem('koiii_calc_history', JSON.stringify(history.slice(0, 30)));
+  renderCalcHistory();
+  showStatus('💾 บันทึกผลลัพธ์ไว้แล้ว', 'success');
+}
+
+// getCalcHistory — อ่านประวัติจาก localStorage
+function getCalcHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('koiii_calc_history')) || [];
+  } catch(e) {
+    return [];
+  }
+}
+
+// renderCalcHistory — วาดรายการประวัติทั้งหมดลงหน้าจอ
+function renderCalcHistory() {
+  const history = getCalcHistory();
+  const listEl  = document.getElementById('calcHistoryList');
+  const emptyEl = document.getElementById('calcHistoryEmpty');
+
+  emptyEl.style.display = history.length ? 'none' : 'block';
+
+  listEl.innerHTML = history.map(function(h, i) {
+    const name = h.productName || 'ไม่ระบุสินค้า';
+    return (
+      '<div class="hist-row">' +
+        '<div>' +
+          '<div class="hist-main">' + name + '</div>' +
+          '<div class="hist-sub">' + h.savedAt + ' · ต้นทุนรวม ฿' + h.total.toFixed(2) +
+            ' · ' + h.platformLabel + ' · กำไร ' + h.profitPercent + '%</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<span class="hist-price">฿' + h.sellPrice + '</span>' +
+          '<button class="hist-del" onclick="deleteCalcHistory(' + i + ')" title="ลบ">🗑</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+// deleteCalcHistory — ลบประวัติ 1 รายการตาม index
+function deleteCalcHistory(index) {
+  const history = getCalcHistory();
+  history.splice(index, 1);
+  localStorage.setItem('koiii_calc_history', JSON.stringify(history));
+  renderCalcHistory();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// applyPriceToMenu — นำราคาที่คำนวณได้ไปตั้งเป็นราคาขายจริงในเมนู POS
+//
+// ใช้ action:'saveMenu' เดียวกับที่ menu-editor.html ใช้ — ต้องส่ง
+// menuItems ทั้งหมดเสมอเพราะ Apps Script เขียนทับ Sheet ทั้งใบ
+// (แก้ price ของรายการเดียวใน memory แล้วส่งทั้ง array กลับไป)
+// ═══════════════════════════════════════════════════════════════
+async function applyPriceToMenu() {
+  if (!lastCalc || !lastCalc.productName) return;
+
+  const item = menuItems.find(function(m) { return m.name === lastCalc.productName; });
+  if (!item) {
+    showStatus('❌ หาสินค้านี้ในเมนูไม่เจอ', 'error');
+    return;
+  }
+
+  const oldPrice = item.price;
+  const newPrice = lastCalc.sellPrice;
+
+  const ok = confirm(
+    'เปลี่ยนราคาขายจริงของ "' + item.name + '" ในเมนู POS\n\n' +
+    'ราคาปัจจุบัน: ฿' + oldPrice + '\n' +
+    'ราคาใหม่: ฿' + newPrice + '\n\n' +
+    'ลูกค้าจะเห็นราคาใหม่ทันทีที่หน้า POS — ยืนยันหรือไม่?'
+  );
+  if (!ok) return;
+
+  const btn = document.getElementById('btnApplyPrice');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังบันทึก...';
+
+  item.price = newPrice; // แก้ใน memory ก่อนส่งทั้ง array
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify({ action: 'saveMenu', token: getToken(), items: menuItems })
+    });
+    document.getElementById('resCurrentPrice').textContent = '฿' + newPrice;
+    showStatus('✅ อัปเดตราคาขาย "' + item.name + '" เป็น ฿' + newPrice + ' แล้ว', 'success');
+  } catch(e) {
+    item.price = oldPrice; // ส่งไม่สำเร็จ → คืนค่าเดิมใน memory
+    showStatus('❌ อัปเดตราคาไม่สำเร็จ: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ ใช้ราคานี้ขายจริง';
+  }
 }
 
 </script>
