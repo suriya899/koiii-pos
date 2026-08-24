@@ -769,15 +769,16 @@ requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม
 // SCRIPT_URL มาจาก auth.js — เปลี่ยนตรงนั้นถ้า deploy Script ใหม่
 
 // หมวดสินค้าทั้งหมด — ใช้สร้าง <option> ใน select
-const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','ลูกชิ้น','เส้น','เครื่องดื่ม','ของหวาน','น้ำซุป','น้ำจิ้ม'];
+// ลำดับนี้ถูกใช้เป็นลำดับการแสดงผลของ renderAll() ด้วย (เต้าหู้ต่อด้วยเส้นตามที่ตกลงกันไว้)
+const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','เส้น','ลูกชิ้น','เครื่องดื่ม','ของหวาน','น้ำซุป','น้ำจิ้ม'];
 
 // หน่วยที่รองรับ
 const UNITS = ['g','ชิ้น','ml'];
 
 // emoji ประจำหมวด สำหรับหัว category group
 const CAT_EMOJI = {
-  เนื้อสัตว์:'🥩', ผัก:'🥬', เห็ด:'🍄', เต้าหู้:'🟨',
-  แปรรูป:'🍢', ของหวาน:'🍰', น้ำซุป:'🍲', น้ำจิ้ม:'🥜'
+  เนื้อสัตว์:'🥩', ผัก:'🥬', เห็ด:'🍄', เต้าหู้:'🟨', เส้น:'🍜',
+  ลูกชิ้น:'🍢', เครื่องดื่ม:'🥤', ของหวาน:'🍰', น้ำซุป:'🍲', น้ำจิ้ม:'🥜'
 };
 
 
@@ -966,11 +967,19 @@ function renderAll() {
   // ── จัดกลุ่มตาม category ──
   // Map รักษาลำดับการเพิ่ม key (ต่างจาก plain object)
   // grouped = { "เนื้อสัตว์": [{item, idx}, ...], "ผัก": [...], ... }
+  //
+  // เรียงตามลำดับใน CATEGORIES เสมอ (ไม่ใช่ตามลำดับแถวใน Sheet ซึ่งสุ่มไม่คงที่)
+  // หมวดที่ไม่อยู่ใน CATEGORIES (เช่น พิมพ์เองแปลกๆ หรือไม่ระบุ) จะต่อท้ายสุด
   const grouped = new Map();
+  CATEGORIES.forEach(function(cat) { grouped.set(cat, []); });
   stockItems.forEach(function(item, idx) {
     const cat = item.category || 'ไม่ระบุหมวด';
     if (!grouped.has(cat)) grouped.set(cat, []);
     grouped.get(cat).push({ item: item, idx: idx });
+  });
+  // ตัดหมวดที่ไม่มีสินค้าเลยออก จะได้ไม่โชว์หัวข้อเปล่าๆ
+  Array.from(grouped.keys()).forEach(function(cat) {
+    if (grouped.get(cat).length === 0) grouped.delete(cat);
   });
 
   // ── ล้าง root แล้วสร้างใหม่ ──
