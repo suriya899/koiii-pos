@@ -670,7 +670,10 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 
 </main>
 
+<script src="auth.js"></script>
 <script>
+requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม่งั้นเด้งกลับไปหน้า login ทันที
+
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  JAVASCRIPT — ตั้งค่าสต็อก Koiii Shabu v3                   ║
 // ║                                                              ║
@@ -696,8 +699,7 @@ main { padding: 14px; max-width: 900px; margin: 0 auto; padding-bottom: 24px; }
 // 1. CONFIG & CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-// URL ของ Google Apps Script — เปลี่ยนตรงนี้ถ้า deploy Script ใหม่
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+// SCRIPT_URL มาจาก auth.js — เปลี่ยนตรงนั้นถ้า deploy Script ใหม่
 
 // หมวดสินค้าทั้งหมด — ใช้สร้าง <option> ใน select
 const CATEGORIES = ['เนื้อสัตว์','ผัก','เห็ด','เต้าหู้','แปรรูป','ของหวาน','น้ำซุป','น้ำจิ้ม'];
@@ -802,7 +804,7 @@ async function loadStockItems() {
   try {
     // fetch = ส่ง HTTP GET ไปขอข้อมูล
     // await = รอผลก่อนทำต่อ (ไม่บล็อก browser)
-    const res  = await fetch(SCRIPT_URL + '?action=getStock');
+    const res  = await fetch(SCRIPT_URL + '?action=getStock&token=' + encodeURIComponent(getToken()));
     const data = await res.json(); // แปลง JSON string → JavaScript array
     // ป้องกันกรณี Sheets ส่งข้อมูลที่ไม่ใช่ array กลับมา
     stockItems = Array.isArray(data) ? data : [];
@@ -819,7 +821,7 @@ async function loadStockItems() {
 // ใช้สำหรับ: dropdown เครื่องคำนวณ + ปุ่มโหลดจากเมนู
 async function loadMenuItems() {
   try {
-    const res  = await fetch(SCRIPT_URL + '?action=getMenu');
+    const res  = await fetch(SCRIPT_URL + '?action=getMenu&token=' + encodeURIComponent(getToken()));
     const data = await res.json();
     menuItems = Array.isArray(data) ? data : [];
     buildProductDropdown(); // เติม option ใน dropdown เครื่องคำนวณ
@@ -1434,7 +1436,7 @@ async function saveItem(idx) {
       method:  'POST',
       // text/plain ป้องกัน CORS preflight ที่ Apps Script ไม่รองรับ
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body:    JSON.stringify({ action: 'saveStock', items: stockItems })
+      body:    JSON.stringify({ action: 'saveStock', token: getToken(), items: stockItems })
     });
     // สำเร็จ — คืนค่าปุ่มหลัง 2 วินาที
     if (btn) {
@@ -1464,7 +1466,7 @@ async function saveAll() {
     await fetch(SCRIPT_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body:    JSON.stringify({ action: 'saveStock', items: stockItems })
+      body:    JSON.stringify({ action: 'saveStock', token: getToken(), items: stockItems })
     });
     if (btn) { btn.disabled = false; btn.textContent = '💾 บันทึกทั้งหมด'; }
     showStatus('✅ บันทึกสำเร็จทั้งหมด!', 'success');

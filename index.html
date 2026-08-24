@@ -17,13 +17,13 @@
 <div class="welcome-screen show" id="welcomeScreen">
   <div class="welcome-bg-glow"></div>
   <span class="welcome-pot">🍲</span>
-  <div class="welcome-brand">KOIII <span>SHABU</span></div>
-  <div class="welcome-sub">Premium Shabu Restaurant</div>
+  <div class="welcome-brand">Gin Koi <span>SHABU</span></div>
+  <div class="welcome-sub">Shabu Restaurant</div>
   <div class="welcome-tagline">
-    ยินดีต้อนรับสู่ Koiii Shabu 🙏<br>กดปุ่มด้านล่างเพื่อสั่งอาหารได้เลยครับ
+    ยินดีต้อนรับสู่ Gin Koi Shabu 🙏<br>กดปุ่มด้านล่างเพื่อสั่งอาหารได้เลยครับ
   </div>
   <button class="welcome-btn" onclick="animateBtn(this, showTypeSelect)">🍲 เริ่มสั่งอาหาร</button>
-  <div class="welcome-footer">KOIII SHABU · POS SYSTEM</div>
+  <div class="welcome-footer">GIN KOI SHABU · POS SYSTEM</div>
 </div>
 
 <!-- ORDER TYPE SELECTION -->
@@ -216,7 +216,10 @@
 </div>
 
 
+<script src="auth.js"></script>
 <script>
+requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม่งั้นเด้งกลับไปหน้า login ทันที
+
 // ============================================================
 // DATA
 // ============================================================
@@ -986,7 +989,7 @@ function renderReceiptQR(amount) {
 }
 
 //เพิ่มการบันทึกยอดขาย
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+const SHEETS_URL = SCRIPT_URL; // SCRIPT_URL มาจาก auth.js (ใช้ URL เดียวกันทุกไฟล์)
 // ============================================================
 // เพิ่มฟังก์ชัน loadMenuFromSheets() ใน index.html
 //
@@ -997,7 +1000,7 @@ async function loadMenuFromSheets() {
   try {
     // ส่ง request ไปขอข้อมูลเมนูจาก Google Sheets
     // ?action=getMenu บอก Apps Script ว่าเราต้องการเมนู ไม่ใช่ออเดอร์
-    const res  = await fetch(`${SHEETS_URL}?action=getMenu`);
+    const res  = await fetch(`${SHEETS_URL}?action=getMenu&token=${encodeURIComponent(getToken())}`);
     const data = await res.json(); // แปลงข้อมูลที่ได้กลับมาจาก JSON string → JavaScript Array
  
     if (data && data.length > 0) {
@@ -1078,6 +1081,7 @@ function saveToSheets(payInfo) {
   const date = now.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'numeric'});
 
   const payload = {
+    token:     getToken(),
     date:      date,
     time:      payInfo.time,
     table:     orderType === 'dine' ? 'โต๊ะ ' + tableNum : 'กลับบ้าน',
@@ -1450,7 +1454,7 @@ async function loadBillsByDate() {
   try {
     const thaiDate = getBHThaiDate(dateVal);
     // ใช้ endpoint เดิมที่มีอยู่แล้ว ?date=... (เหมือน dashboard.html)
-    const res  = await fetch(`${SHEETS_URL}?date=${encodeURIComponent(thaiDate)}`);
+    const res  = await fetch(`${SHEETS_URL}?date=${encodeURIComponent(thaiDate)}&token=${encodeURIComponent(getToken())}`);
     const data = await res.json();
 
     // ป้องกัน response ที่ไม่ใช่ array (เช่น error object)
@@ -1648,6 +1652,7 @@ async function confirmCancelBill() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body:    JSON.stringify({
         action:    'cancelOrder',
+        token:     getToken(),
         date:      bill.date,       // วันที่ของบิล เช่น "21/03/2569"
         time:      bill.time,       // เวลา เช่น "18:30"
         table:     bill.table || '', // "โต๊ะ 3" หรือ "กลับบ้าน"

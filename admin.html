@@ -648,37 +648,25 @@ main {
 
 </main>
 
+<script src="auth.js"></script>
 <script>
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  JAVASCRIPT — Admin Panel v2                                 ║
+// ║  JAVASCRIPT — Admin Panel v3                                 ║
 // ║                                                              ║
 // ║  ขั้นตอนการทำงานทั้งหมด:                                     ║
 // ║  1. เปิดหน้า → checkSession() ตรวจ sessionStorage           ║
 // ║  2. มี session ที่ยังไม่หมดอายุ → showPanel() ข้าม login    ║
 // ║  3. ไม่มี session → showLogin() ให้ใส่รหัสผ่าน              ║
 // ║  4. กด login / Enter → login() ส่งไป Apps Script            ║
-// ║  5. Apps Script ตอบ {ok:true} → saveSession() + showPanel() ║
+// ║  5. Apps Script ตอบ {ok:true, token} → saveSession(token)   ║
+// ║     + showPanel() — token นี้ใช้แนบไปกับทุกหน้าหลังบ้าน     ║
 // ║  6. Apps Script ตอบ {ok:false} → showError() (รหัสผิด)     ║
 // ║  7. Network error → showError() พร้อม detail (เช่น HTTP 403)║
 // ║  8. กด logout → clearSession() + showLogin()                ║
+// ║                                                              ║
+// ║  v3: SCRIPT_URL / SESSION_KEY / SESSION_TTL / saveSession() /║
+// ║  clearSession() ย้ายไปอยู่ใน auth.js ใช้ร่วมกันทุกหน้าแล้ว   ║
 // ╚══════════════════════════════════════════════════════════════╝
-
-
-// ═══════════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════════
-
-// URL ของ Google Apps Script
-// ใช้ URL เดียวกับทั้งระบบ POS
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
-
-// ชื่อ key ที่ใช้เก็บ session ใน sessionStorage
-// sessionStorage ล้างตัวเองอัตโนมัติเมื่อปิด browser tab
-const SESSION_KEY = 'koiii_admin_auth';
-
-// อายุ session = 8 ชั่วโมง (หน่วย millisecond)
-// 8 * 60 * 60 * 1000 = 28,800,000 ms
-const SESSION_TTL = 8 * 60 * 60 * 1000;
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -691,44 +679,16 @@ window.addEventListener('DOMContentLoaded', function() {
 
 // ═══════════════════════════════════════════════════════════════
 // checkSession() — ตรวจสอบว่ามี session ที่ยังใช้ได้อยู่ไหม
-//
-// sessionStorage vs localStorage:
-//   sessionStorage = ล้างตัวเองเมื่อปิด browser tab (ปลอดภัยกว่า)
-//   localStorage   = เก็บไว้ตลอดจนกว่าจะลบเอง
-//   → ใช้ sessionStorage เพราะ admin ควรต้อง login ใหม่ทุกวัน
-//
-// โครงสร้าง session ที่เก็บ:
-//   { loggedIn: true, loginTime: 1234567890 }
-//   loginTime = Date.now() ตอนที่ login (millisecond)
+// (ใช้ getSession() จาก auth.js — เช็ค token + อายุ session ให้แล้ว)
 // ═══════════════════════════════════════════════════════════════
 function checkSession() {
-  try {
-    // sessionStorage.getItem คืน null ถ้าไม่มี key นั้น
-    var raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) {
-      // ไม่มี session เลย → แสดง login
-      showLogin();
-      return;
-    }
-
-    // JSON.parse แปลง string → object
-    var session = JSON.parse(raw);
-
-    // คำนวณว่าผ่านมาแล้วกี่ millisecond ตั้งแต่ login
-    // Date.now() = เวลาปัจจุบันเป็น millisecond (นับจาก 1 Jan 1970)
-    var elapsed = Date.now() - session.loginTime;
-
-    if (session.loggedIn && elapsed < SESSION_TTL) {
-      // session ยังไม่หมดอายุ → ข้าม login ไปแสดง panel เลย
-      showPanel();
-    } else {
-      // session หมดอายุ (เกิน 8 ชั่วโมง) หรือข้อมูลผิดรูปแบบ
-      clearSession();
-      showLogin();
-    }
-  } catch(e) {
-    // JSON.parse error หรือ sessionStorage ไม่รองรับ
-    showLogin(); // ปลอดภัยกว่าคือแสดง login เสมอ
+  if (getSession()) {
+    // session ยังไม่หมดอายุ → ข้าม login ไปแสดง panel เลย
+    showPanel();
+  } else {
+    // ไม่มี session หรือหมดอายุแล้ว
+    clearSession();
+    showLogin();
   }
 }
 
@@ -846,8 +806,9 @@ async function login() {
 
     // ── ตรวจผล ──
     if (data.ok === true) {
-      // ✅ รหัสถูก
-      saveSession();
+      // ✅ รหัสถูก — เก็บ token ที่ Apps Script สร้างให้ไว้ใน session
+      // token นี้จะถูกแนบไปกับทุก request ในหน้าอื่นๆ หลังจากนี้
+      saveSession(data.token);
       showPanel();
     } else {
       // ❌ รหัสผิด
@@ -978,37 +939,6 @@ function showError(main, detail) {
 // ═══════════════════════════════════════════════════════════════
 function hideError() {
   document.getElementById('errorBox').classList.remove('show');
-}
-
-
-// ═══════════════════════════════════════════════════════════════
-// saveSession() — บันทึก session หลัง login สำเร็จ
-//
-// เก็บใน sessionStorage:
-//   loggedIn:  true
-//   loginTime: timestamp ตอน login (millisecond)
-//
-// ทำไม sessionStorage ไม่ใช่ localStorage?
-//   localStorage ค้างอยู่จนกว่าจะลบเอง → เปิดคอมวันถัดไปยังไม่ต้อง login
-//   sessionStorage ล้างตัวเองเมื่อปิด tab → ปลอดภัยกว่า
-//   เหมาะกับร้านอาหารที่เปิดใช้แล้วปิดทุกวัน
-// ═══════════════════════════════════════════════════════════════
-function saveSession() {
-  var session = {
-    loggedIn:  true,
-    loginTime: Date.now() // เวลาปัจจุบัน millisecond
-  };
-  // JSON.stringify แปลง object → string เพราะ sessionStorage รับแค่ string
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
-
-
-// ═══════════════════════════════════════════════════════════════
-// clearSession() — ลบ session
-// เรียกตอน logout หรือ session หมดอายุ
-// ═══════════════════════════════════════════════════════════════
-function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY);
 }
 
 
