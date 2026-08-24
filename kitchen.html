@@ -258,11 +258,14 @@ main { padding:10px; }
 
 <div id="printSlip"></div>
 
+<script src="auth.js"></script>
 <script>
+requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม่งั้นเด้งกลับไปหน้า login ทันที
+
 // ============================================================
 // CONFIG
+// SCRIPT_URL มาจาก auth.js (ใช้ URL เดียวกันทุกไฟล์)
 // ============================================================
-const SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
 const SHOP_NAME      = 'Koiii Shabu';
 const POLL_INTERVAL  = 20000; // poll ทุก 20 วินาที
 const URGENT_MINUTES = 10;    // สีแดงเมื่อรอเกิน 10 นาที
@@ -393,7 +396,7 @@ async function pollOrders() {
 
   setStatus('loading', 'กำลังโหลด...');
   try {
-    const res  = await fetch(`${SCRIPT_URL}?date=${encodeURIComponent(today)}`);
+    const res  = await fetch(`${SCRIPT_URL}?date=${encodeURIComponent(today)}&token=${encodeURIComponent(getToken())}`);
     const rows = await res.json();
     if (!Array.isArray(rows)) throw new Error('ข้อมูลไม่ใช่ array');
     processOrders(rows);

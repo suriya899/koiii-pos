@@ -557,11 +557,13 @@ main { padding:14px; max-width:1200px; margin:0 auto; }
      ============================================================ -->
 <div class="toast" id="toastMsg"></div>
 
+<script src="auth.js"></script>
 <script>
+requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม่งั้นเด้งกลับไปหน้า login ทันที
+
 // ============================================================
-// CONFIG
+// CONFIG — SCRIPT_URL มาจาก auth.js (ใช้ URL เดียวกันทุกไฟล์)
 // ============================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
 
 // ============================================================
 // STATE — ตัวแปรเก็บสถานะของหน้า
@@ -696,7 +698,7 @@ async function loadAll() {
 // ============================================================
 async function loadStock() {
   try {
-    const res = await fetch(`${SCRIPT_URL}?action=getStock`);
+    const res = await fetch(`${SCRIPT_URL}?action=getStock&token=${encodeURIComponent(getToken())}`);
     allItems  = await res.json();
     // กรองและค้นหาตาม state ปัจจุบัน
     // false = ไม่อัปเดต active tab (เพราะผู้ใช้ไม่ได้กดปุ่ม)
@@ -713,7 +715,7 @@ async function loadStock() {
 // ============================================================
 async function loadLog() {
   try {
-    const res  = await fetch(`${SCRIPT_URL}?action=getStockLog&limit=50`);
+    const res  = await fetch(`${SCRIPT_URL}?action=getStockLog&limit=50&token=${encodeURIComponent(getToken())}`);
     const logs = await res.json();
     renderLog(logs);
   } catch(e) {
@@ -1057,6 +1059,7 @@ async function confirmWaste() {
 // ============================================================
 async function postToScript(body) {
   try {
+    body.token = getToken(); // แนบ token ยืนยันตัวตนไปกับทุก action ที่แก้ข้อมูล
     const res = await fetch(SCRIPT_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },

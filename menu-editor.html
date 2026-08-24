@@ -314,8 +314,10 @@ main { flex:1; padding:16px; max-width:800px; width:100%; margin:0 auto; padding
   </div>
 </div>
 
+<script src="auth.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziGE6NDPk2ztrirPlMFueedesJKn0ANOzuTVyqwqZ7w5O6eXempqbMqLTggSEEhBf2/exec';
+requireAuth(); // ต้อง login ผ่าน admin.html ก่อน ไม่งั้นเด้งกลับไปหน้า login ทันที
+// SCRIPT_URL มาจาก auth.js (ใช้ URL เดียวกันทุกไฟล์)
 
 const IMG = {
   'เนื้อหมูสามชั้น':'images/pork-belly.png','เนื้ออกไก่':'images/chicken-breast.png',
@@ -394,7 +396,7 @@ async function init() {
     catch(e) {}
   }
   try {
-    const res  = await fetch(SCRIPT_URL + '?action=getMenu');
+    const res  = await fetch(SCRIPT_URL + '?action=getMenu&token=' + encodeURIComponent(getToken()));
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
       // items = data.map(r => ({ ...r, price: parseFloat(r.price)||0, active: r.active==='TRUE'||r.active===true }));
@@ -610,7 +612,7 @@ async function saveToSheets() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
 
       // แปลง items (array ของเมนูทั้งหมด) เป็นข้อความ JSON แล้วส่งไป
-      body: JSON.stringify({ action: 'saveMenu', items: items.map(item => ({
+      body: JSON.stringify({ action: 'saveMenu', token: getToken(), items: items.map(item => ({
     ...item,
     img:          item.imgKey,      // imgKey → img
     weight_desc:  item.weightDesc,  // weightDesc → weight_desc
