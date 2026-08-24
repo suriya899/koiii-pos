@@ -239,7 +239,7 @@ main { flex:1; padding:16px; max-width:800px; width:100%; margin:0 auto; padding
   </div>
   <div class="header-right">
     <span class="changes-badge" id="changesBadge" style="display:none">● มีการเปลี่ยนแปลง</span>
-    <a href="dashboard.html" class="btn-back" id="backBtn">← Dashboard</a>
+    <a href="admin.html" class="btn-back" id="backBtn">← Admin</a>
   </div>
 </header>
 
@@ -667,7 +667,7 @@ function escH(s) {
 
 // ─── EVENT LISTENERS ───
 
-// ถ้ากดปุ่ม "← Dashboard" ขณะที่มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+// ถ้ากดปุ่ม "← Admin" ขณะที่มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
 // ให้ถามยืนยันก่อนออกหน้า
 document.getElementById('backBtn').addEventListener('click', e => {
   if (hasChanges && !confirm('มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก\nออกไปโดยไม่ save ไหม?')) {
